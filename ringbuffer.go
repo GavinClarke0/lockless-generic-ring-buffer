@@ -55,27 +55,25 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 	var lastRead uint32
 	var i uint32
 
-	/*
-		Non-critical path, we are blocking until the all at least one space is available in the buffer
-	*/
-	lastRead = ringbuffer.readersPosition[0]
+	// Non-critical path, we are blocking until the all at least one space is available in the buffer
+	lastRead = ringbuffer.readersPosition[0] + ringbuffer.length
 	for i = 1; i <= ringbuffer.readerCount; i++ {
-		if ringbuffer.readersPosition[i] < lastRead {
-			lastRead = ringbuffer.readersPosition[i]
+		if ringbuffer.readersPosition[i]+ringbuffer.length < lastRead {
+			lastRead = ringbuffer.readersPosition[i] + ringbuffer.length
 		}
 	}
 
-	for lastRead+ringbuffer.length <= ringbuffer.headPointer {
+	for lastRead <= ringbuffer.headPointer {
 		runtime.Gosched()
-		lastRead = ringbuffer.readersPosition[0]
+		lastRead = ringbuffer.readersPosition[0] + ringbuffer.length
 		for i = 1; i < ringbuffer.readerCount; i++ {
-			if ringbuffer.readersPosition[i] < lastRead {
-				lastRead = ringbuffer.readersPosition[i]
+			if ringbuffer.readersPosition[i]+ringbuffer.length < lastRead {
+				lastRead = ringbuffer.readersPosition[i] + ringbuffer.length
 			}
 		}
 	}
 
-	ringbuffer.buffer[(ringbuffer.headPointer)%ringbuffer.length] = value
+	ringbuffer.buffer[ringbuffer.headPointer%ringbuffer.length] = value
 	atomic.AddUint32(&ringbuffer.headPointer, 1)
 }
 

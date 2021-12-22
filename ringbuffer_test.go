@@ -35,7 +35,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 100000; i++ {
 		messages = append(messages, i)
 	}
 
@@ -69,7 +69,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 
 func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
-	var buffer = CreateBuffer[int](50)
+	var buffer = CreateBuffer[int](10000)
 
 	var wg sync.WaitGroup
 	messages := []int{}
@@ -92,16 +92,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-
 		i := 0
-
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer1.Get()
-
-			//fmt.Println(j)
 			if j < i {
-				//fmt.Println("fail")
 				t.Fail()
 			}
 			i = j
@@ -110,13 +105,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-
 		i := 0
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer2.Get()
 			if j < i {
-				fmt.Println("fail")
 				t.Fail()
 			}
 			i = j
@@ -125,13 +118,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-
 		i := 0
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer3.Get()
 			if j < i {
-				fmt.Println("fail")
 				t.Fail()
 			}
 			i = j
