@@ -1,93 +1,95 @@
 package ringbuffer
 
 import (
-	"errors"
-	"sync"
+	"runtime"
+	"sync/atomic"
 )
 
 var (
-	ErrorIsFull      = errors.New("ring buffer is full")
-	ErrorIsEmpty     = errors.New("ring buffer is empty")
-	ErrorAcquireLock = errors.New("no lock to accquire")
+	MaxUint32    = ^uint32(0)
+	MaxConsumers = 100
 )
 
 type RingBuffer[T any] struct {
-	buffer       []T
-	lock         sync.RWMutex
-	length       int
-	writePointer int // next position to write
-	tailPointer  int
-	overwrite    bool
+	buffer          []T
+	length          uint32
+	headPointer     uint32 // next position to write
+	readerCount     uint32
+	readersPosition [100]uint32
 }
 
 type Consumer[T any] struct {
-	readPointer int
-	lock        sync.RWMutex
-	ring        *RingBuffer[T]
-	size        int
+	ring *RingBuffer[T]
+	id   uint32
 }
 
-func CreateBuffer[T any](size int, overwrite bool) RingBuffer[T] {
+func CreateBuffer[T any](size uint32) RingBuffer[T] {
+
+	var buffer = [100]uint32{}
+
+	for i, _ := range buffer {
+		buffer[i] = MaxUint32
+	}
+
 	return RingBuffer[T]{
-		buffer:       make([]T, size, size),
-		lock:         sync.RWMutex{},
-		size:         size,
-		writePointer: 0,
-		overwrite:    overwrite,
+		buffer:          make([]T, size, size),
+		length:          size,
+		headPointer:     0,
+		readersPosition: buffer,
 	}
 }
 
-func (ringbuffer *RingBuffer[T]) CreateConsumer() Consumer[T] {
+func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
+
+	var position = atomic.AddUint32(&ringbuffer.readerCount, 1)
+	ringbuffer.readersPosition[position-1] = ringbuffer.headPointer - 1
+
 	return Consumer[T]{
-		readPointer: ringbuffer.writePointer,
-		ring:        ringbuffer,
-		lock:        sync.RWMutex{},
-		size:        ringbuffer.length,
+		id:   position - 1,
+		ring: ringbuffer,
+	}, nil
+}
+
+func (ringbuffer *RingBuffer[T]) Write(value T) {
+
+	var lastRead uint32
+	var i uint32
+
+	/*
+		Non-critical path, we are blocking until the all at least one space is available in the buffer
+	*/
+	lastRead = ringbuffer.readersPosition[0]
+	for i = 1; i <= ringbuffer.readerCount; i++ {
+		if ringbuffer.readersPosition[i] < lastRead {
+			lastRead = ringbuffer.readersPosition[i]
+		}
 	}
+
+	for lastRead+ringbuffer.length <= ringbuffer.headPointer {
+		runtime.Gosched()
+		lastRead = ringbuffer.readersPosition[0]
+		for i = 1; i < ringbuffer.readerCount; i++ {
+			if ringbuffer.readersPosition[i] < lastRead {
+				lastRead = ringbuffer.readersPosition[i]
+			}
+		}
+	}
+
+	ringbuffer.buffer[(ringbuffer.headPointer)%ringbuffer.length] = value
+	atomic.AddUint32(&ringbuffer.headPointer, 1)
 }
 
-func (ringbuffer *RingBuffer[T]) Write(x T) {
+func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
 
-	ringbuffer.lock.Lock()
-	defer ringbuffer.lock.Unlock()
+	var newIndex = atomic.AddUint32(&ringbuffer.readersPosition[consumerId], 1)
 
-	var index = ringbuffer.writePointer
-	ringbuffer.buffer[index] = x
-
-	ringbuffer.writePointer = (ringbuffer.writePointer + 1) % ringbuffer.length
-}
-
-func (ringbuffer *RingBuffer[T]) readIndex(i int) T {
-
-	ringbuffer.lock.RLock()
-	defer ringbuffer.lock.RUnlock()
-
-	return ringbuffer.buffer[i]
+	// yield until work is available
+	for newIndex >= ringbuffer.headPointer {
+		runtime.Gosched()
+	}
+	return ringbuffer.buffer[newIndex%ringbuffer.length]
 }
 
 func (consumer *Consumer[T]) Get() T {
-	//var value T
-	var value T
-	var index = consumer.readPointer
-
-	if consumer.readPointer == consumer.ring.writePointer {
-		return value
-	}
-
-	value = consumer.ring.readIndex(index)
-	consumer.readPointer = (consumer.readPointer + 1) % consumer.ring.length
-
-	return value
-}
-
-func (consumer *Consumer[T]) GetSafe() any {
-	consumer.lock.Lock()
-	defer consumer.lock.Unlock()
-
-	var index = consumer.readPointer
-	var value = consumer.ring.readIndex(index)
-
-	consumer.readPointer = (consumer.readPointer + 1) % consumer.ring.length
-
-	return value
+	return consumer.ring.readIndex(consumer.id)
 }
