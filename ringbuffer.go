@@ -9,7 +9,7 @@ import (
 
 var (
 	MaxUint32        = ^uint32(0)
-	MaxConsumers     = 100
+	MaxConsumers     = 200
 	MaxConsumerError = errors.New("max amount of consumers reached cannot create any more")
 )
 
@@ -18,7 +18,7 @@ type RingBuffer[T any] struct {
 	length          uint32
 	headPointer     uint32 // next position to write
 	maxReaderIndex  uint32
-	readersPosition [100]*uint32
+	readersPosition [200]*uint32
 	consumerLock    sync.Mutex
 }
 
@@ -33,7 +33,7 @@ func CreateBuffer[T any](size uint32) RingBuffer[T] {
 		buffer:          make([]T, size, size),
 		length:          size,
 		headPointer:     0,
-		readersPosition: [100]*uint32{},
+		readersPosition: [200]*uint32{},
 		consumerLock:    sync.Mutex{},
 	}
 }
@@ -66,7 +66,6 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 		return Consumer[T]{}, MaxConsumerError
 	}
 
-	// increment reader, since location is currently nil will be ignored until reader position set
 	if insertIndex >= ringbuffer.maxReaderIndex {
 		atomic.AddUint32(&ringbuffer.maxReaderIndex, 1)
 	}
@@ -80,6 +79,14 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 	}, nil
 }
 
+func (consumer *Consumer[T]) Remove() {
+	consumer.ring.removeConsumer(consumer.id)
+}
+
+func (consumer *Consumer[T]) Get() T {
+	return consumer.ring.readIndex(consumer.id)
+}
+
 func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
 
 	ringbuffer.consumerLock.Lock()
@@ -90,10 +97,6 @@ func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
 	if consumerId == ringbuffer.maxReaderIndex-1 {
 		ringbuffer.maxReaderIndex--
 	}
-}
-
-func (consumer *Consumer[T]) Remove() {
-	consumer.ring.removeConsumer(consumer.id)
 }
 
 func (ringbuffer *RingBuffer[T]) Write(value T) {
@@ -135,7 +138,6 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 		if lastRead > ringbuffer.headPointer {
 			break
 		}
-		// yield to scheduler if call must block
 		runtime.Gosched()
 	}
 
@@ -152,8 +154,4 @@ func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
 		runtime.Gosched()
 	}
 	return ringbuffer.buffer[newIndex%ringbuffer.length]
-}
-
-func (consumer *Consumer[T]) Get() T {
-	return consumer.ring.readIndex(consumer.id)
 }

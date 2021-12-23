@@ -1,7 +1,6 @@
 package ringbuffer
 
 import (
-	"fmt"
 	"sync"
 	"testing"
 )
@@ -12,7 +11,7 @@ func TestSequentialInt(t *testing.T) {
 
 	var buffer = CreateBuffer[int](10)
 
-	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	consumer, _ := buffer.CreateConsumer()
 
 	for _, value := range messages {
@@ -25,6 +24,32 @@ func TestSequentialInt(t *testing.T) {
 }
 
 /*
+func TestAddConsumerMidwork(t *testing.T) {
+
+	//ring := make([]int, 10, 10)
+
+	var buffer = CreateBuffer[int](10)
+
+	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	for _, value := range messages[:5] {
+		buffer.Write(value)
+	}
+
+	consumer, _ := buffer.CreateConsumer()
+
+	for _, value := range messages[5:] {
+		buffer.Write(value)
+	}
+
+	for _, _ = range messages {
+		_ = consumer.Get()
+	}
+}
+
+*/
+
+/*
 Test order is still preserved with simultaneous reading writing
 */
 func TestConcurrentSingleProducerConsumer(t *testing.T) {
@@ -34,7 +59,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 100000; i++ {
 		messages = append(messages, i)
 	}
 
@@ -56,8 +81,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer.Get()
-			if j < i {
-				fmt.Println("access order invalid")
+			if j != i+1 {
 				t.Fail()
 			}
 			i = j
@@ -66,6 +90,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 	wg.Wait()
 }
 
+// Test all values are read in order
 func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	var buffer = CreateBuffer[int](100)
@@ -73,7 +98,7 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 100000; i++ {
 		messages = append(messages, i)
 	}
 
@@ -91,11 +116,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		i := 0
+		i := -1
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer1.Get()
-			if j < i {
+			if j-1 != i {
 				t.Fail()
 			}
 			i = j
@@ -104,11 +129,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		i := 0
+		i := -1
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer2.Get()
-			if j < i {
+			if j-1 != i {
 				t.Fail()
 			}
 			i = j
@@ -117,11 +142,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		i := 0
+		i := -1
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer3.Get()
-			if j < i {
+			if j-1 != i {
 				t.Fail()
 			}
 			i = j
