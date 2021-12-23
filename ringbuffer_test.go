@@ -35,7 +35,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 100000; i++ {
+	for i := 0; i < 100000000; i++ {
 		messages = append(messages, i)
 	}
 
@@ -74,7 +74,7 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 1000; i++ {
 		messages = append(messages, i)
 	}
 
