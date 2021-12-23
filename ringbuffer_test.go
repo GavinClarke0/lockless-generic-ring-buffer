@@ -69,7 +69,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 
 func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
-	var buffer = CreateBuffer[int](10000)
+	var buffer = CreateBuffer[int](100)
 
 	var wg sync.WaitGroup
 	messages := []int{}
