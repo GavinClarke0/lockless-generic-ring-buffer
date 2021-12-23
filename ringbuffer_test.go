@@ -15,11 +15,11 @@ func TestSequentialInt(t *testing.T) {
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 	consumer, _ := buffer.CreateConsumer()
 
-	for _, value := range messages {
+	for _, value := range messages[:9] {
 		buffer.Write(value)
 	}
 
-	for _, _ = range messages {
+	for _, _ = range messages[:9] {
 		x := consumer.Get()
 		fmt.Println(x)
 	}
@@ -35,7 +35,7 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 100000000; i++ {
 		messages = append(messages, i)
 	}
 
@@ -69,12 +69,12 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 
 func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
-	var buffer = CreateBuffer[int](50)
+	var buffer = CreateBuffer[int](100)
 
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 1000; i++ {
 		messages = append(messages, i)
 	}
 
@@ -92,16 +92,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-
 		i := 0
-
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer1.Get()
-
-			//fmt.Println(j)
 			if j < i {
-				//fmt.Println("fail")
 				t.Fail()
 			}
 			i = j
@@ -110,13 +105,11 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-
 		i := 0
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer2.Get()
 			if j < i {
-				fmt.Println("fail")
 				t.Fail()
 			}
 			i = j
@@ -125,13 +118,87 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-
 		i := 0
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer3.Get()
 			if j < i {
-				fmt.Println("fail")
+				t.Fail()
+			}
+			i = j
+		}
+	}()
+	wg.Wait()
+}
+
+func TestConcurrentMultiProducerMultiConsumer(t *testing.T) {
+
+	var buffer = CreateBuffer[int](100)
+
+	var wg sync.WaitGroup
+	var messages = make(chan int, 10000)
+
+	for i := 0; i < 10000; i++ {
+		messages <- i
+	}
+
+	consumer1, _ := buffer.CreateConsumer()
+	consumer2, _ := buffer.CreateConsumer()
+	consumer3, _ := buffer.CreateConsumer()
+
+	// producer 1
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for value := range messages {
+			buffer.Write(value)
+		}
+	}()
+
+	// producer 2
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for value := range messages {
+			buffer.Write(value)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		i := 0
+		defer wg.Done()
+
+		for k := 0; k < 10000; k++ {
+			j := consumer1.Get()
+			if j < i {
+				t.Fail()
+			}
+			i = j
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		i := 0
+		defer wg.Done()
+		for k := 0; k < 10000; k++ {
+			j := consumer2.Get()
+			if j < i {
+				t.Fail()
+			}
+			i = j
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		i := 0
+		defer wg.Done()
+		for k := 0; k < 10000; k++ {
+			j := consumer3.Get()
+			if j < i {
 				t.Fail()
 			}
 			i = j
