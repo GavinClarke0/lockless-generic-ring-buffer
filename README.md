@@ -12,7 +12,7 @@ This package goes to great lengths not to allocate in the critical path and thus
 ## Examples
 
 ### Create and Consume 
-```azure
+```go
 	var buffer = CreateBuffer[int](10)
 
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
