@@ -9,7 +9,7 @@ pass serialized structs between go routines in a type safe manner.
 
 ## Examples
 
-###Create and Consume 
+### Create and Consume 
 ```azure
 	var buffer = CreateBuffer[int](10)
 
