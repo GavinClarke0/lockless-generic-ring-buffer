@@ -5,11 +5,16 @@ import (
 	"testing"
 )
 
-func TestSequentialInt(t *testing.T) {
+const (
+	BufferSize      = 100
+	BufferSizeSmall = 10
+)
+
+func TestGetsAreSequentiallyOrdered(t *testing.T) {
 
 	//ring := make([]int, 10, 10)
 
-	var buffer = CreateBuffer[int](10)
+	var buffer = CreateBuffer[int](BufferSize, 10)
 
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	consumer, _ := buffer.CreateConsumer()
@@ -18,43 +23,94 @@ func TestSequentialInt(t *testing.T) {
 		buffer.Write(value)
 	}
 
-	for _, _ = range messages {
-		_ = consumer.Get()
+	for i, _ := range messages {
+		value := consumer.Get()
+
+		if value != messages[i] {
+			t.FailNow()
+		}
 	}
 }
 
-/*
-func TestAddConsumerMidwork(t *testing.T) {
+// test adding a consumer mid work
+func TestNewConsumerReadsFromCurrentWritePosition(t *testing.T) {
 
-	//ring := make([]int, 10, 10)
-
-	var buffer = CreateBuffer[int](10)
+	var buffer = CreateBuffer[int](BufferSize, 10)
 
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	consumer1, _ := buffer.CreateConsumer()
 
 	for _, value := range messages[:5] {
 		buffer.Write(value)
 	}
 
-	consumer, _ := buffer.CreateConsumer()
+	consumer2, _ := buffer.CreateConsumer()
 
 	for _, value := range messages[5:] {
 		buffer.Write(value)
 	}
 
-	for _, _ = range messages {
-		_ = consumer.Get()
+	for _, value := range messages {
+
+		getValue := consumer1.Get()
+
+		if getValue != value {
+			t.Fail()
+		}
 	}
+
+	// test it reads froms
+	for _, value := range messages[5:] {
+		getValue := consumer2.Get()
+
+		if getValue != value {
+			t.Fail()
+		}
+	}
+
 }
 
-*/
+// test adding a consumer mid work
+func TestRemovingConsumerDoesNotBlockNewWrites(t *testing.T) {
+
+	var buffer = CreateBuffer[int](BufferSize, 10)
+
+	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	consumer1, _ := buffer.CreateConsumer()
+	consumer2, _ := buffer.CreateConsumer()
+
+	for _, value := range messages[:5] {
+		buffer.Write(value)
+	}
+
+	consumer2.Remove()
+
+	for _, value := range messages[5:] {
+		buffer.Write(value)
+	}
+
+	for _, value := range messages {
+
+		getValue := consumer1.Get()
+
+		if getValue != value {
+			t.Fail()
+		}
+	}
+
+	if buffer.readersPosition[1] != nil {
+		t.Fail()
+	}
+}
 
 /*
 Test order is still preserved with simultaneous reading writing
 */
-func TestConcurrentSingleProducerConsumer(t *testing.T) {
+func TestConcurrentGetsAreSequentiallyOrdered(t *testing.T) {
 
-	var buffer = CreateBuffer[int](100)
+	var buffer = CreateBuffer[int](BufferSize, 10)
 
 	var wg sync.WaitGroup
 	messages := []int{}
@@ -91,9 +147,9 @@ func TestConcurrentSingleProducerConsumer(t *testing.T) {
 }
 
 // Test all values are read in order
-func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
+func TestConcurrentGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 
-	var buffer = CreateBuffer[int](100)
+	var buffer = CreateBuffer[int](BufferSize, 10)
 
 	var wg sync.WaitGroup
 	messages := []int{}
@@ -148,6 +204,177 @@ func TestConcurrentSingleProducerMultiConsumer(t *testing.T) {
 			j := consumer3.Get()
 			if j-1 != i {
 				t.Fail()
+			}
+			i = j
+		}
+	}()
+	wg.Wait()
+}
+
+// Test all values are read in order
+func TestConcurrentProducersDoNotOverwriteOtherProducersWrites(t *testing.T) {
+
+	var buffer = CreateBuffer[int](BufferSize, 10)
+
+	var wg sync.WaitGroup
+	messages := make(chan int, 10000)
+
+	for i := 0; i < 5000; i++ {
+		messages <- 0
+	}
+
+	for i := 0; i < 5000; i++ {
+		messages <- 1
+	}
+
+	consumer1, _ := buffer.CreateConsumer()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case x, ok := <-messages:
+				if ok {
+					buffer.Write(x)
+				} else {
+					return
+				}
+			default:
+				return
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case x, ok := <-messages:
+				if ok {
+					buffer.Write(x)
+				} else {
+					return
+				}
+			default:
+				return
+			}
+		}
+
+	}()
+
+	// ensure no values are overwritten by other producer
+	wg.Add(1)
+	go func() {
+		countZero := 0
+		countOne := 0
+		defer wg.Done()
+		for k := 0; k < 10000; k++ {
+			j := consumer1.Get()
+
+			if j == 0 {
+				countZero++
+			}
+
+			if j == 1 {
+				countOne++
+			}
+
+		}
+
+		if countZero != 5000 || countOne != 5000 {
+			t.Fail()
+		}
+
+	}()
+	wg.Wait()
+}
+
+/*
+General Benchmark to compare reading from channels vrs the ring buffer.
+
+Note there is heavy over head for syncing the routines in both and is not accurate beyond a general comparison.
+*/
+func BenchmarkConsumerConcurrentReadWrite(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ConsumerConcurrentReadWrite(100000)
+	}
+}
+
+func BenchmarkChannelsConcurrentReadWrite(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ChannelsConcurrentReadWrite(100000)
+	}
+}
+
+func ConsumerConcurrentReadWrite(n int) {
+
+	var buffer = CreateBuffer[int](BufferSize, 10)
+
+	var wg sync.WaitGroup
+	messages := []int{}
+
+	for i := 0; i < n; i++ {
+		messages = append(messages, i)
+	}
+
+	consumer, _ := buffer.CreateConsumer()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, value := range messages {
+			buffer.Write(value)
+		}
+	}()
+
+	i := -1
+
+	wg.Add(1)
+	go func() {
+
+		defer wg.Done()
+		for _, _ = range messages {
+			j := consumer.Get()
+			if j != i+1 {
+				panic("data is inconsistent")
+			}
+			i = j
+		}
+	}()
+	wg.Wait()
+}
+
+func ChannelsConcurrentReadWrite(n int) {
+
+	var wg sync.WaitGroup
+	messages := []int{}
+
+	for i := 0; i < n; i++ {
+		messages = append(messages, i)
+	}
+
+	var buffer = make(chan int, BufferSize)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, value := range messages {
+			buffer <- value
+		}
+	}()
+
+	i := -1
+
+	wg.Add(1)
+	go func() {
+
+		defer wg.Done()
+		for _, _ = range messages {
+			j := <-buffer
+			if j != i+1 {
+				panic("data is inconsistent")
 			}
 			i = j
 		}

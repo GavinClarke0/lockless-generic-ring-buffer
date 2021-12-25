@@ -9,7 +9,6 @@ import (
 
 var (
 	MaxUint32        = ^uint32(0)
-	MaxConsumers     = 200
 	MaxConsumerError = errors.New("max amount of consumers reached cannot create any more")
 )
 
@@ -18,7 +17,7 @@ type RingBuffer[T any] struct {
 	length          uint32
 	headPointer     uint32 // next position to write
 	maxReaderIndex  uint32
-	readersPosition [200]*uint32
+	readersPosition []*uint32
 	consumerLock    sync.Mutex
 }
 
@@ -27,13 +26,13 @@ type Consumer[T any] struct {
 	id   uint32
 }
 
-func CreateBuffer[T any](size uint32) RingBuffer[T] {
+func CreateBuffer[T any](size uint32, maxConsumer uint32) RingBuffer[T] {
 
 	return RingBuffer[T]{
 		buffer:          make([]T, size, size),
 		length:          size,
 		headPointer:     0,
-		readersPosition: [200]*uint32{},
+		readersPosition: make([]*uint32, maxConsumer),
 		consumerLock:    sync.Mutex{},
 	}
 }
@@ -41,7 +40,7 @@ func CreateBuffer[T any](size uint32) RingBuffer[T] {
 /*
 CreateConsumer
 
-Create a consumer by assiging it the id of the first empty position in the consumerPosition array.A nil value represents
+Create a consumer by assigning it the id of the first empty position in the consumerPosition array.A nil value represents
 a unclaimed/not used consumer if
 
 Locks can be used as it has no effect on read/write operations and is only to keep consumer consistancy, thus the
@@ -62,7 +61,7 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 		}
 	}
 
-	if insertIndex == ringbuffer.length {
+	if int(insertIndex) == len(ringbuffer.readersPosition) {
 		return Consumer[T]{}, MaxConsumerError
 	}
 
