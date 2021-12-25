@@ -13,18 +13,18 @@ This package goes to great lengths not to allocate in the critical path and thus
 
 ### Create and Consume 
 ```go
-	var buffer = CreateBuffer[int](10)
+var buffer = CreateBuffer[int](10)
 
-	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
-	consumer, _ := buffer.CreateConsumer()
+messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+consumer, _ := buffer.CreateConsumer()
 
-	for _, value := range messages {
-		buffer.Write(value)
-	}
+for _, value := range messages {
+	buffer.Write(value)
+}
 
-	for _, _ = range messages {
-		_ = consumer.Get()
-	}
+for _, _ = range messages {
+	_ = consumer.Get()
+}
 ```
 
 ## TODO:
