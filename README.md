@@ -4,6 +4,8 @@ This is an implementation of a single producer, multi reader lockless ring buffe
 `go 1.18`. Instead of passing typeless `interface{}` which we have to assert or deserialized `[]byte`'s we are able to 
 pass serialized structs between go routines in a type safe manner.
 
+This package goes to great lengths not to allocate in the critical path and thus makes 0 allocations once the buffer is created. 
+
 ## Requirements
 - `golang 1.18beta`
 
@@ -24,3 +26,7 @@ pass serialized structs between go routines in a type safe manner.
 		_ = consumer.Get()
 	}
 ```
+
+## TODO:
+- [ ] formal benchmarks and preformance tests
+- [ ] Formal TLS Proof and Write up of algorithm
