@@ -1,3 +1,3 @@
-module MarketFrameWork/Libraries/ringbuffer
+module ringbuffer
 
 go 1.18
