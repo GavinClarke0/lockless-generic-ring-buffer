@@ -43,8 +43,8 @@ CreateConsumer
 Create a consumer by assigning it the id of the first empty position in the consumerPosition array.A nil value represents
 a unclaimed/not used consumer if
 
-Locks can be used as it has no effect on read/write operations and is only to keep consumer consistancy, thus the
-alogrithmn.is still lockless For best preformance,consumers should be preallocated before starting buffer operations
+Locks can be used as it has no effect on read/write operations and is only to keep consumer consistency, thus the
+algorithm is still lockless For best performance, consumers should be preallocated before starting buffer operations
 */
 func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 
@@ -107,8 +107,8 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 	/*
 		Non-critical path, we are blocking until the all at least one space is available in the buffer to write.
 
-		To allow overflow wrap of uint32 value we add length of buffer to current consumer read positions allowing us to
-		determine the least read consumer at the overflow boundary.
+		As overflow properties of uint32 are utilized to ensure slice index boundaries are adhered too we add length of
+		buffer to current consumer read positions allowing us to determine the least read consumer.
 
 		For example: buffer of size 2
 

@@ -5,9 +5,41 @@ import (
 	"testing"
 )
 
-/*
-General Benchmark to compare reading from channels vrs the ring buffer.
+func BenchmarkConsumerSequentialReadWrite(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ConsumerSequentialReadWrite(100000)
+	}
+}
 
+func BenchmarkChannelsSequentialReadWrite(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ChannelsSequentialReadWrite(100000)
+	}
+}
+
+func ConsumerSequentialReadWrite(n int) {
+
+	var buffer = CreateBuffer[int](BufferSize, 10)
+	consumer, _ := buffer.CreateConsumer()
+
+	for i := 0; i < n; i++ {
+		buffer.Write(i)
+		consumer.Get()
+	}
+}
+
+func ChannelsSequentialReadWrite(n int) {
+
+	var buffer = make(chan int, BufferSize)
+
+	for i := 0; i < n; i++ {
+		buffer <- i
+		<-buffer
+	}
+}
+
+/*
+General Benchmark to compare concurrent reading from channels vrs the ring buffer.
 Note there is heavy over head for syncing the routines in both and is not accurate beyond a general comparison.
 */
 func BenchmarkConsumerConcurrentReadWrite(b *testing.B) {
