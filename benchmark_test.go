@@ -5,15 +5,39 @@ import (
 	"testing"
 )
 
-func BenchmarkConsumerSequentialReadWrite(b *testing.B) {
+func BenchmarkConsumerSequentialReadWriteLarge(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ConsumerSequentialReadWrite(10000000)
+	}
+}
+
+func BenchmarkChannelsSequentialReadWriteLarge(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ChannelsSequentialReadWrite(10000000)
+	}
+}
+
+func BenchmarkConsumerSequentialReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		ConsumerSequentialReadWrite(100000)
 	}
 }
 
-func BenchmarkChannelsSequentialReadWrite(b *testing.B) {
+func BenchmarkChannelsSequentialReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		ChannelsSequentialReadWrite(100000)
+	}
+}
+
+func BenchmarkConsumerSequentialReadWriteSmall(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ConsumerSequentialReadWrite(1000)
+	}
+}
+
+func BenchmarkChannelsSequentialReadWriteSmall(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ChannelsSequentialReadWrite(1000)
 	}
 }
 
@@ -42,15 +66,38 @@ func ChannelsSequentialReadWrite(n int) {
 General Benchmark to compare concurrent reading from channels vrs the ring buffer.
 Note there is heavy over head for syncing the routines in both and is not accurate beyond a general comparison.
 */
-func BenchmarkConsumerConcurrentReadWrite(b *testing.B) {
+func BenchmarkConsumerConcurrentReadWriteLarge(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ConsumerConcurrentReadWrite(10000000)
+	}
+}
+
+func BenchmarkChannelsConcurrentReadWriteLarge(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ChannelsConcurrentReadWrite(10000000)
+	}
+}
+
+func BenchmarkConsumerConcurrentReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		ConsumerConcurrentReadWrite(100000)
 	}
 }
 
-func BenchmarkChannelsConcurrentReadWrite(b *testing.B) {
+func BenchmarkChannelsConcurrentReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		ChannelsConcurrentReadWrite(100000)
+	}
+}
+func BenchmarkConsumerConcurrentReadWriteSmall(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ConsumerConcurrentReadWrite(1000)
+	}
+}
+
+func BenchmarkChannelsConcurrentReadWriteSmall(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		ChannelsConcurrentReadWrite(1000)
 	}
 }
 
