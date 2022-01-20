@@ -32,10 +32,18 @@ for _, _ = range messages {
 
 ### Comparison against channels 
 ```sql
-BenchmarkConsumerSequentialReadWrite-8               849           1261116 ns/op            1060 B/op          4 allocs/op
-BenchmarkChannelsSequentialReadWrite-8               453           2640028 ns/op             896 B/op          1 allocs/op
-BenchmarkConsumerConcurrentReadWrite-8               235           5095339 ns/op         4102668 B/op         37 allocs/op
-BenchmarkChannelsConcurrentReadWrite-8                79          15557314 ns/op         4102493 B/op         33 allocs/op
+BenchmarkConsumerSequentialReadWriteLarge-8            8         127404589 ns/op            1060 B/op          4 allocs/op
+BenchmarkChannelsSequentialReadWriteLarge-8            4         265133938 ns/op             898 B/op          1 allocs/op
+BenchmarkConsumerSequentialReadWriteMedium-8         942           1264458 ns/op            1060 B/op          4 allocs/op
+BenchmarkChannelsSequentialReadWriteMedium-8         452           2655275 ns/op             896 B/op          1 allocs/op
+BenchmarkConsumerSequentialReadWriteSmall-8        94333             12593 ns/op            1060 B/op          4 allocs/op
+BenchmarkChannelsSequentialReadWriteSmall-8        45060             26648 ns/op             896 B/op          1 allocs/op
+BenchmarkConsumerConcurrentReadWriteLarge-8            2         520416396 ns/op        492003812 B/op        65 allocs/op
+BenchmarkChannelsConcurrentReadWriteLarge-8            1        1245517208 ns/op        492002264 B/op        59 allocs/op
+BenchmarkConsumerConcurrentReadWriteMedium-8         235           5097063 ns/op         4102692 B/op         37 allocs/op
+BenchmarkChannelsConcurrentReadWriteMedium-8         100          12909553 ns/op         4102507 B/op         33 allocs/op
+BenchmarkConsumerConcurrentReadWriteSmall-8        30693             39371 ns/op           26424 B/op         21 allocs/op
+BenchmarkChannelsConcurrentReadWriteSmall-8        22174             53359 ns/op           26241 B/op         17 allocs/op
 ```
 
 In sequential benchmarks it is about double the read write speed of channels and in concurrent benchmarks where 
