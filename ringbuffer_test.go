@@ -1,4 +1,4 @@
-package ringbuffer
+package lockless_generic_ring_buffer
 
 import (
 	"sync"
