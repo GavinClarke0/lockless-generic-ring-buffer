@@ -13,12 +13,12 @@ var (
 )
 
 type RingBuffer[T any] struct {
-	buffer          []T
-	length          uint32
-	headPointer     uint32 // next position to write
-	maxReaderIndex  uint32
-	readersPosition []*uint32
-	consumerLock    sync.Mutex
+	buffer         []T
+	length         uint32
+	headPointer    uint32 // next position to write
+	maxReaderIndex uint32
+	readerPointers []*uint32
+	consumerLock   sync.Mutex
 }
 
 type Consumer[T any] struct {
@@ -29,11 +29,12 @@ type Consumer[T any] struct {
 func CreateBuffer[T any](size uint32, maxConsumer uint32) RingBuffer[T] {
 
 	return RingBuffer[T]{
-		buffer:          make([]T, size, size),
-		length:          size,
-		headPointer:     0,
-		readersPosition: make([]*uint32, maxConsumer),
-		consumerLock:    sync.Mutex{},
+		buffer:         make([]T, size, size),
+		length:         size,
+		headPointer:    0,
+		maxReaderIndex: 0,
+		readerPointers: make([]*uint32, maxConsumer+1),
+		consumerLock:   sync.Mutex{},
 	}
 }
 
@@ -54,14 +55,14 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 	var insertIndex = ringbuffer.length // default to maximum case
 
 	// locate first empty position, if no empty positions return error
-	for i, consumer := range ringbuffer.readersPosition {
+	for i, consumer := range ringbuffer.readerPointers {
 		if consumer == nil {
 			insertIndex = uint32(i)
 			break
 		}
 	}
 
-	if int(insertIndex) == len(ringbuffer.readersPosition) {
+	if int(insertIndex) == len(ringbuffer.readerPointers) {
 		return Consumer[T]{}, MaxConsumerError
 	}
 
@@ -70,7 +71,7 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 	}
 
 	var readPosition = ringbuffer.headPointer - 1
-	ringbuffer.readersPosition[insertIndex] = &readPosition
+	ringbuffer.readerPointers[insertIndex] = &readPosition
 
 	return Consumer[T]{
 		id:   insertIndex,
@@ -91,17 +92,15 @@ func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
 	ringbuffer.consumerLock.Lock()
 	defer ringbuffer.consumerLock.Unlock()
 
-	ringbuffer.readersPosition[consumerId] = nil
-
-	if consumerId == ringbuffer.maxReaderIndex-1 {
-		ringbuffer.maxReaderIndex--
-	}
+	ringbuffer.readerPointers[consumerId] = nil
+	atomic.CompareAndSwapUint32(&ringbuffer.maxReaderIndex, consumerId-1, ringbuffer.maxReaderIndex-1)
 }
 
 func (ringbuffer *RingBuffer[T]) Write(value T) {
 
-	var lastRead uint32
-	var currentRead uint32
+	var lastTailReaderPointerPosition uint32
+	var currentReadPosition uint32
+	var currentMaxReaderPosition uint32
 	var i uint32
 
 	/*
@@ -121,20 +120,22 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 		scheduler and recheck for current minimum consumer.
 	*/
 	for {
-		lastRead = ringbuffer.headPointer + ringbuffer.length
-		for i = 0; i <= ringbuffer.maxReaderIndex; i++ {
+		lastTailReaderPointerPosition = ringbuffer.headPointer + ringbuffer.length
+		currentMaxReaderPosition = atomic.LoadUint32(&ringbuffer.maxReaderIndex)
 
-			if ringbuffer.readersPosition[i] == nil {
+		for i = 0; i <= currentMaxReaderPosition; i++ {
+
+			if ringbuffer.readerPointers[i] == nil {
 				continue
 			}
 
-			currentRead = *ringbuffer.readersPosition[i] + ringbuffer.length
-			if currentRead < lastRead {
-				lastRead = currentRead
+			currentReadPosition = atomic.LoadUint32(ringbuffer.readerPointers[i]) + ringbuffer.length
+			if currentReadPosition < lastTailReaderPointerPosition {
+				lastTailReaderPointerPosition = currentReadPosition
 			}
 		}
 
-		if lastRead > ringbuffer.headPointer {
+		if lastTailReaderPointerPosition > ringbuffer.headPointer {
 			break
 		}
 		runtime.Gosched()
@@ -146,10 +147,10 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 
 func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
 
-	var newIndex = atomic.AddUint32(ringbuffer.readersPosition[consumerId], 1)
+	var newIndex = atomic.AddUint32(ringbuffer.readerPointers[consumerId], 1)
 
 	// yield until work is available
-	for newIndex >= ringbuffer.headPointer {
+	for newIndex >= atomic.LoadUint32(&ringbuffer.headPointer) {
 		runtime.Gosched()
 	}
 	return ringbuffer.buffer[newIndex%ringbuffer.length]
