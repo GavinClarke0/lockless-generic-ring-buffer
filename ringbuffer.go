@@ -1,4 +1,4 @@
-package ringbuffer
+package lockless_generic_ring_buffer
 
 import (
 	"errors"
@@ -40,8 +40,8 @@ func CreateBuffer[T any](size uint32, maxConsumer uint32) RingBuffer[T] {
 /*
 CreateConsumer
 
-Create a consumer by assigning it the id of the first empty position in the consumerPosition array.A nil value represents
-a unclaimed/not used consumer if
+Create a consumer by assigning it the id of the first empty position in the consumerPosition array. A nil value represents
+an unclaimed/not used consumer.
 
 Locks can be used as it has no effect on read/write operations and is only to keep consumer consistency, thus the
 algorithm is still lockless For best performance, consumers should be preallocated before starting buffer operations
@@ -105,7 +105,7 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 	var i uint32
 
 	/*
-		Non-critical path, we are blocking until the all at least one space is available in the buffer to write.
+		We are blocking until the all at least one space is available in the buffer to write.
 
 		As overflow properties of uint32 are utilized to ensure slice index boundaries are adhered too we add length of
 		buffer to current consumer read positions allowing us to determine the least read consumer.
