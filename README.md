@@ -4,8 +4,13 @@ This is an implementation of a single producer, multi reader lockless ring buffe
 `go 1.18`. Instead of passing typeless `interface{}` which we have to assert or deserialized `[]byte`'s we are able to 
 pass serialized structs between go routines in a type safe manner.
 
-This package goes to great lengths not to allocate in the critical path and thus makes 0 allocations once the buffer is 
+This package goes to great lengths not to allocate in the critical path and thus makes `0` allocations once the buffer is 
 created outside the creation of consumers. 
+
+A large part of the benefit of ring buffers can be attributed to the underlying array being continuous memory. 
+Understanding how your structs lay out in memory 
+([a brief introduction into how structs are represented in memory](https://research.swtch.com/godata)) is key to if your 
+use case will benefit from storing the structs themselves vs pointers. 
 
 ## Requirements
 - `golang 1.18beta`
