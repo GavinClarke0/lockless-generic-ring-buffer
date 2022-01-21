@@ -1,6 +1,7 @@
 package lockless_generic_ring_buffer
 
 import (
+	"crypto/rand"
 	"sync"
 	"testing"
 )
@@ -8,6 +9,7 @@ import (
 const (
 	BufferSize      = 100
 	BufferSizeSmall = 10
+	BufferSizeTiny  = 2
 )
 
 func TestGetsAreSequentiallyOrdered(t *testing.T) {
@@ -105,9 +107,7 @@ func TestRemovingConsumerDoesNotBlockNewWrites(t *testing.T) {
 	}
 }
 
-/*
-Test order is still preserved with simultaneous reading writing
-*/
+// Test order is still preserved with simultaneous reading writing
 func TestConcurrentGetsAreSequentiallyOrdered(t *testing.T) {
 
 	var buffer = CreateBuffer[int](BufferSize, 10)
@@ -146,6 +146,111 @@ func TestConcurrentGetsAreSequentiallyOrdered(t *testing.T) {
 	wg.Wait()
 }
 
+// Test order is still preserved with simultaneous reading writing
+func TestConcurrentGetsAreSequentiallyOrderedTinybuffer(t *testing.T) {
+
+	var buffer = CreateBuffer[int](BufferSizeTiny, 10)
+
+	var wg sync.WaitGroup
+	messages := []int{}
+
+	for i := 0; i < 100000; i++ {
+		messages = append(messages, i)
+	}
+
+	consumer, _ := buffer.CreateConsumer()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, value := range messages {
+			buffer.Write(value)
+		}
+	}()
+
+	i := -1
+
+	wg.Add(1)
+	go func() {
+
+		defer wg.Done()
+		for _, _ = range messages {
+			j := consumer.Get()
+			if j != i+1 {
+				t.Fail()
+			}
+			i = j
+		}
+	}()
+	wg.Wait()
+}
+
+func TestConcurrentGetsStringsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
+
+	var buffer = CreateBuffer[string](BufferSizeSmall, 10)
+
+	var wg sync.WaitGroup
+	messages := []string{}
+
+	for i := 0; i < 100000; i++ {
+		token := make([]byte, 16)
+		rand.Read(token)
+		messages = append(messages, string(token))
+	}
+
+	consumer1, _ := buffer.CreateConsumer()
+	consumer2, _ := buffer.CreateConsumer()
+	consumer3, _ := buffer.CreateConsumer()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, value := range messages {
+			buffer.Write(value)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		//i := -1
+		defer wg.Done()
+		for _, value := range messages {
+			j := consumer1.Get()
+			if j != value {
+				t.Fail()
+			}
+			//i = j
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		//i := -1
+		defer wg.Done()
+		for _, value := range messages {
+			j := consumer2.Get()
+			if j != value {
+				t.Fail()
+			}
+			//i = j
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		//i := -1
+		defer wg.Done()
+		for _, value := range messages {
+			j := consumer3.Get()
+			if j != value {
+				t.Fail()
+			}
+			//i = j
+		}
+	}()
+	wg.Wait()
+}
+
 // Test all values are read in order
 func TestConcurrentGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 
@@ -154,7 +259,7 @@ func TestConcurrentGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 	var wg sync.WaitGroup
 	messages := []int{}
 
-	for i := 0; i < 100000; i++ {
+	for i := 0; i < 1000000; i++ {
 		messages = append(messages, i)
 	}
 
@@ -172,40 +277,40 @@ func TestConcurrentGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		i := -1
+		//i := -1
 		defer wg.Done()
-		for _, _ = range messages {
+		for _, value := range messages {
 			j := consumer1.Get()
-			if j-1 != i {
+			if j != value {
 				t.Fail()
 			}
-			i = j
+			//i = j
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
-		i := -1
+		//i := -1
 		defer wg.Done()
-		for _, _ = range messages {
+		for _, value := range messages {
 			j := consumer2.Get()
-			if j-1 != i {
+			if j != value {
 				t.Fail()
 			}
-			i = j
+			//i = j
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
-		i := -1
+		//i := -1
 		defer wg.Done()
-		for _, _ = range messages {
+		for _, value := range messages {
 			j := consumer3.Get()
-			if j-1 != i {
+			if j != value {
 				t.Fail()
 			}
-			i = j
+			//i = j
 		}
 	}()
 	wg.Wait()
