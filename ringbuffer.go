@@ -152,5 +152,6 @@ func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
 	for newIndex >= ringbuffer.headPointer {
 		runtime.Gosched()
 	}
+
 	return ringbuffer.buffer[newIndex%ringbuffer.length]
 }
