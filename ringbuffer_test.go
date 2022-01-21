@@ -102,7 +102,7 @@ func TestRemovingConsumerDoesNotBlockNewWrites(t *testing.T) {
 		}
 	}
 
-	if buffer.readersPosition[1] != nil {
+	if buffer.readerPointers[1] != nil {
 		t.Fail()
 	}
 }
