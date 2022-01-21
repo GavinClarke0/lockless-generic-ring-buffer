@@ -13,12 +13,12 @@ var (
 )
 
 type RingBuffer[T any] struct {
-	buffer            []T
-	length            uint32
-	headPointer       uint32 // next position to write
-	maxReaderPosition uint32
-	readerPointers    []*uint32
-	consumerLock      sync.Mutex
+	buffer         []T
+	length         uint32
+	headPointer    uint32 // next position to write
+	maxReaderIndex uint32
+	readerPointers []*uint32
+	consumerLock   sync.Mutex
 }
 
 type Consumer[T any] struct {
@@ -29,12 +29,12 @@ type Consumer[T any] struct {
 func CreateBuffer[T any](size uint32, maxConsumer uint32) RingBuffer[T] {
 
 	return RingBuffer[T]{
-		buffer:            make([]T, size, size),
-		length:            size,
-		headPointer:       0,
-		maxReaderPosition: 0,
-		readerPointers:    make([]*uint32, maxConsumer+1),
-		consumerLock:      sync.Mutex{},
+		buffer:         make([]T, size, size),
+		length:         size,
+		headPointer:    0,
+		maxReaderIndex: 0,
+		readerPointers: make([]*uint32, maxConsumer+1),
+		consumerLock:   sync.Mutex{},
 	}
 }
 
@@ -66,8 +66,8 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 		return Consumer[T]{}, MaxConsumerError
 	}
 
-	if insertIndex >= ringbuffer.maxReaderPosition {
-		atomic.AddUint32(&ringbuffer.maxReaderPosition, 1)
+	if insertIndex >= ringbuffer.maxReaderIndex {
+		atomic.AddUint32(&ringbuffer.maxReaderIndex, 1)
 	}
 
 	var readPosition = ringbuffer.headPointer - 1
@@ -93,7 +93,7 @@ func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
 	defer ringbuffer.consumerLock.Unlock()
 
 	ringbuffer.readerPointers[consumerId] = nil
-	atomic.CompareAndSwapUint32(&ringbuffer.maxReaderPosition, consumerId-1, ringbuffer.maxReaderPosition-1)
+	atomic.CompareAndSwapUint32(&ringbuffer.maxReaderIndex, consumerId-1, ringbuffer.maxReaderIndex-1)
 }
 
 func (ringbuffer *RingBuffer[T]) Write(value T) {
@@ -121,7 +121,7 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 	*/
 	for {
 		lastTailReaderPointerPosition = ringbuffer.headPointer + ringbuffer.length
-		currentMaxReaderPosition = atomic.LoadUint32(&ringbuffer.maxReaderPosition)
+		currentMaxReaderPosition = atomic.LoadUint32(&ringbuffer.maxReaderIndex)
 
 		for i = 0; i <= currentMaxReaderPosition; i++ {
 
