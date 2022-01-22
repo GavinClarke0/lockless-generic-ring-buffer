@@ -71,7 +71,7 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 	}
 
 	var readPosition = ringbuffer.headPointer - 1
-	ringbuffer.readerPointers[insertIndex] = &readPosition
+	atomic.StoreUint32(ringbuffer.readerPointers[insertIndex], readPosition)
 
 	return Consumer[T]{
 		id:   insertIndex,
@@ -136,13 +136,13 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 		}
 
 		if lastTailReaderPointerPosition > ringbuffer.headPointer {
-			break
+
+			ringbuffer.buffer[ringbuffer.headPointer%ringbuffer.length] = value
+			atomic.AddUint32(&ringbuffer.headPointer, 1)
+			return
 		}
 		runtime.Gosched()
 	}
-
-	ringbuffer.buffer[ringbuffer.headPointer%ringbuffer.length] = value
-	atomic.AddUint32(&ringbuffer.headPointer, 1)
 }
 
 func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
