@@ -114,10 +114,6 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 		uint8 head = 1
 		uint8 tail = 255
 		tail + 2 => 1 with overflow, same as buffer
-
-		Concurrent access does not matter as variables can only be updated to make progression towards head pointer, if a
-		variable is updated during iteration it has no effect on data integrity. Worst case it causes another yield to
-		scheduler and recheck for current minimum consumer.
 	*/
 	for {
 		lastTailReaderPointerPosition = ringbuffer.headPointer + ringbuffer.length
@@ -136,13 +132,13 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 		}
 
 		if lastTailReaderPointerPosition > ringbuffer.headPointer {
-			break
+
+			ringbuffer.buffer[ringbuffer.headPointer%ringbuffer.length] = value
+			atomic.AddUint32(&ringbuffer.headPointer, 1)
+			return
 		}
 		runtime.Gosched()
 	}
-
-	ringbuffer.buffer[ringbuffer.headPointer%ringbuffer.length] = value
-	atomic.AddUint32(&ringbuffer.headPointer, 1)
 }
 
 func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
