@@ -4,19 +4,20 @@ import (
 	"crypto/rand"
 	"sync"
 	"testing"
+	"time"
 )
 
 const (
-	BufferSize      = 100
-	BufferSizeSmall = 10
-	BufferSizeTiny  = 2
+	BufferSizeStandard = 100
+	BufferSizeSmall    = 10
+	BufferSizeTiny     = 2
 )
 
 func TestGetsAreSequentiallyOrdered(t *testing.T) {
 
 	//ring := make([]int, 10, 10)
 
-	var buffer = CreateBuffer[int](BufferSize, 10)
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
 
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	consumer, _ := buffer.CreateConsumer()
@@ -37,7 +38,7 @@ func TestGetsAreSequentiallyOrdered(t *testing.T) {
 // test adding a consumer mid work
 func TestNewConsumerReadsFromCurrentWritePosition(t *testing.T) {
 
-	var buffer = CreateBuffer[int](BufferSize, 10)
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
 
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 
@@ -76,7 +77,7 @@ func TestNewConsumerReadsFromCurrentWritePosition(t *testing.T) {
 // test adding a consumer mid work
 func TestRemovingConsumerDoesNotBlockNewWrites(t *testing.T) {
 
-	var buffer = CreateBuffer[int](BufferSize, 10)
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
 
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 
@@ -110,7 +111,7 @@ func TestRemovingConsumerDoesNotBlockNewWrites(t *testing.T) {
 // Test order is still preserved with simultaneous reading writing
 func TestConcurrentGetsAreSequentiallyOrdered(t *testing.T) {
 
-	var buffer = CreateBuffer[int](BufferSize, 10)
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
 
 	var wg sync.WaitGroup
 	messages := []int{}
@@ -147,7 +148,7 @@ func TestConcurrentGetsAreSequentiallyOrdered(t *testing.T) {
 }
 
 // Test order is still preserved with simultaneous reading writing
-func TestConcurrentGetsAreSequentiallyOrderedTinybuffer(t *testing.T) {
+func TestConcurrentGetsAreSequentiallyOrderedMinibuffer(t *testing.T) {
 
 	var buffer = CreateBuffer[int](BufferSizeTiny, 10)
 
@@ -185,7 +186,7 @@ func TestConcurrentGetsAreSequentiallyOrderedTinybuffer(t *testing.T) {
 	wg.Wait()
 }
 
-func TestConcurrentGetsStringsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
+func TestConcurrentStringsGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 
 	var buffer = CreateBuffer[string](BufferSizeSmall, 10)
 
@@ -254,7 +255,7 @@ func TestConcurrentGetsStringsAreSequentiallyOrderedWithMultiConsumer(t *testing
 // Test all values are read in order
 func TestConcurrentGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 
-	var buffer = CreateBuffer[int](BufferSize, 10)
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
 
 	var wg sync.WaitGroup
 	messages := []int{}
@@ -314,4 +315,62 @@ func TestConcurrentGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 		}
 	}()
 	wg.Wait()
+}
+
+// Test all values are read in order
+func TestConcurrentAddRemoveConsumerDoesNotBlockWrites(t *testing.T) {
+
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
+
+	var wg sync.WaitGroup
+	messages := []int{}
+
+	for i := 0; i < 10000; i++ {
+		messages = append(messages, i)
+	}
+
+	consumer1, _ := buffer.CreateConsumer()
+
+	failIfDeadLock(t)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, value := range messages {
+			buffer.Write(value)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for _, value := range messages {
+			j := consumer1.Get()
+			if j != value {
+				t.Fail()
+			}
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		consumer2, _ := buffer.CreateConsumer()
+
+		defer wg.Done()
+		for _, value := range messages[:500] {
+			j := consumer2.Get()
+			if j != value {
+				t.Fail()
+			}
+		}
+
+		consumer2.Remove()
+	}()
+
+	wg.Wait()
+}
+
+func failIfDeadLock(t *testing.T) {
+	// fail if routine is blocking
+	go time.AfterFunc(1*time.Second, func() { t.FailNow() })
 }

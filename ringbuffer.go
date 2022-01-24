@@ -70,7 +70,7 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 		atomic.AddUint32(&ringbuffer.maxReaderIndex, 1)
 	}
 
-	var readPosition = ringbuffer.headPointer - 1
+	var readPosition = atomic.LoadUint32(&ringbuffer.headPointer) - 1
 	ringbuffer.readerPointers[insertIndex] = &readPosition
 
 	return Consumer[T]{
@@ -102,7 +102,6 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 	var currentReadPosition uint32
 	var currentMaxReaderPosition uint32
 	var i uint32
-
 	/*
 		We are blocking until the all at least one space is available in the buffer to write.
 
@@ -119,15 +118,14 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 		lastTailReaderPointerPosition = ringbuffer.headPointer + ringbuffer.length
 		currentMaxReaderPosition = atomic.LoadUint32(&ringbuffer.maxReaderIndex)
 
-		for i = 0; i <= currentMaxReaderPosition; i++ {
+		for i = 0; i < currentMaxReaderPosition; i++ {
 
-			if ringbuffer.readerPointers[i] == nil {
-				continue
-			}
+			if ringbuffer.readerPointers[i] != nil {
+				currentReadPosition = atomic.LoadUint32(ringbuffer.readerPointers[i]) + ringbuffer.length
 
-			currentReadPosition = atomic.LoadUint32(ringbuffer.readerPointers[i]) + ringbuffer.length
-			if currentReadPosition < lastTailReaderPointerPosition {
-				lastTailReaderPointerPosition = currentReadPosition
+				if currentReadPosition < lastTailReaderPointerPosition {
+					lastTailReaderPointerPosition = currentReadPosition
+				}
 			}
 		}
 
