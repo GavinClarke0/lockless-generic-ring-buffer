@@ -103,7 +103,7 @@ func TestRemovingConsumerDoesNotBlockNewWrites(t *testing.T) {
 		}
 	}
 
-	if buffer.readerPointers[1] != nil {
+	if buffer.readerActiveFlags[1] != 0 {
 		t.Fail()
 	}
 }
@@ -372,5 +372,7 @@ func TestConcurrentAddRemoveConsumerDoesNotBlockWrites(t *testing.T) {
 
 func failIfDeadLock(t *testing.T) {
 	// fail if routine is blocking
-	go time.AfterFunc(1*time.Second, func() { t.FailNow() })
+	go time.AfterFunc(1*time.Second, func() {
+		t.FailNow()
+	})
 }
