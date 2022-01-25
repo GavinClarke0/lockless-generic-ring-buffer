@@ -2,6 +2,7 @@ package lockless_generic_ring_buffer
 
 import (
 	"crypto/rand"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -347,6 +348,7 @@ func TestConcurrentAddRemoveConsumerDoesNotBlockWrites(t *testing.T) {
 		for _, value := range messages {
 			j := consumer1.Get()
 			if j != value {
+				fmt.Println("bad value 1")
 				t.Fail()
 			}
 		}
@@ -357,11 +359,8 @@ func TestConcurrentAddRemoveConsumerDoesNotBlockWrites(t *testing.T) {
 		consumer2, _ := buffer.CreateConsumer()
 
 		defer wg.Done()
-		for _, value := range messages[:500] {
-			j := consumer2.Get()
-			if j != value {
-				t.Fail()
-			}
+		for _, _ = range messages[:500] {
+			consumer2.Get()
 		}
 
 		consumer2.Remove()
@@ -373,6 +372,7 @@ func TestConcurrentAddRemoveConsumerDoesNotBlockWrites(t *testing.T) {
 func failIfDeadLock(t *testing.T) {
 	// fail if routine is blocking
 	go time.AfterFunc(1*time.Second, func() {
+		fmt.Println("DeadLock")
 		t.FailNow()
 	})
 }

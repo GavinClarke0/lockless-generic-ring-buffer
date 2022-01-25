@@ -8,18 +8,19 @@ import (
 )
 
 var (
-	MaxUint32        = ^uint32(0)
 	MaxConsumerError = errors.New("max amount of consumers reached cannot create any more")
 )
 
 type RingBuffer[T any] struct {
-	buffer            []T
 	length            uint32
 	headPointer       uint32 // next position to write
-	maxReaderIndex    uint32
+	_                 uint32 // align on 64bit machine
+	maximumConsumerId uint32
+	maxConsumers      int
+	consumerLock      sync.Mutex
+	buffer            []T
 	readerPointers    []uint32
 	readerActiveFlags []uint32
-	consumerLock      sync.Mutex
 }
 
 type Consumer[T any] struct {
@@ -27,16 +28,17 @@ type Consumer[T any] struct {
 	id   uint32
 }
 
-func CreateBuffer[T any](size uint32, maxConsumer uint32) RingBuffer[T] {
+func CreateBuffer[T any](size uint32, maxConsumers uint32) RingBuffer[T] {
 
 	return RingBuffer[T]{
 		buffer:            make([]T, size, size),
 		length:            size,
 		headPointer:       0,
-		maxReaderIndex:    0,
-		readerPointers:    make([]uint32, maxConsumer+1),
-		readerActiveFlags: make([]uint32, maxConsumer+1),
+		maximumConsumerId: 0,
+		maxConsumers:      int(maxConsumers),
 		consumerLock:      sync.Mutex{},
+		readerPointers:    make([]uint32, maxConsumers),
+		readerActiveFlags: make([]uint32, maxConsumers),
 	}
 }
 
@@ -54,31 +56,39 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 	ringbuffer.consumerLock.Lock()
 	defer ringbuffer.consumerLock.Unlock()
 
-	var insertIndex = uint32(len(ringbuffer.readerPointers)) // default to maximum case
+	var newConsumerId = ringbuffer.maxConsumers
 
-	// locate first empty position, if no empty positions return error
-	for i, consumer := range ringbuffer.readerActiveFlags {
-		if consumer == 0 {
-			insertIndex = uint32(i)
+	for i, _ := range ringbuffer.readerActiveFlags {
+		if atomic.LoadUint32(&ringbuffer.readerActiveFlags[i]) == 0 {
+			newConsumerId = i
 			break
 		}
 	}
 
-	if int(insertIndex) == len(ringbuffer.readerPointers) {
+	if newConsumerId == ringbuffer.maxConsumers {
 		return Consumer[T]{}, MaxConsumerError
 	}
 
-	if insertIndex >= ringbuffer.maxReaderIndex {
-		atomic.AddUint32(&ringbuffer.maxReaderIndex, 1)
+	if uint32(newConsumerId) >= ringbuffer.maximumConsumerId {
+		atomic.AddUint32(&ringbuffer.maximumConsumerId, 1)
 	}
 
-	ringbuffer.readerPointers[insertIndex] = atomic.LoadUint32(&ringbuffer.headPointer) - 1
-	atomic.StoreUint32(&ringbuffer.readerActiveFlags[insertIndex], 1)
+	ringbuffer.readerPointers[newConsumerId] = atomic.LoadUint32(&ringbuffer.headPointer) - 1
+	atomic.StoreUint32(&ringbuffer.readerActiveFlags[newConsumerId], 1)
 
 	return Consumer[T]{
-		id:   insertIndex,
+		id:   uint32(newConsumerId),
 		ring: ringbuffer,
 	}, nil
+}
+
+func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
+
+	ringbuffer.consumerLock.Lock()
+	defer ringbuffer.consumerLock.Unlock()
+
+	atomic.StoreUint32(&ringbuffer.readerActiveFlags[consumerId], 0)
+	atomic.CompareAndSwapUint32(&ringbuffer.maximumConsumerId, consumerId, ringbuffer.maximumConsumerId-1)
 }
 
 func (consumer *Consumer[T]) Remove() {
@@ -89,26 +99,16 @@ func (consumer *Consumer[T]) Get() T {
 	return consumer.ring.readIndex(consumer.id)
 }
 
-func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
-
-	ringbuffer.consumerLock.Lock()
-	defer ringbuffer.consumerLock.Unlock()
-
-	atomic.StoreUint32(&ringbuffer.readerActiveFlags[consumerId], 0)
-	atomic.CompareAndSwapUint32(&ringbuffer.maxReaderIndex, consumerId-1, ringbuffer.maxReaderIndex-1)
-}
-
 func (ringbuffer *RingBuffer[T]) Write(value T) {
 
 	var lastTailReaderPointerPosition uint32
 	var currentReadPosition uint32
-	var currentMaxReaderPosition uint32
 	var i uint32
 	/*
 		We are blocking until the all at least one space is available in the buffer to write.
 
-		As overflow properties of uint32 are utilized to ensure slice index boundaries are adhered too we add length of
-		buffer to current consumer read positions allowing us to determine the least read consumer.
+		As overflow properties of uint32 are utilized to ensure slice index boundaries are adhered too we add the length
+		of buffer to current consumer read positions allowing us to determine the least read consumer.
 
 		For example: buffer of size 2
 
@@ -118,9 +118,8 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 	*/
 	for {
 		lastTailReaderPointerPosition = atomic.LoadUint32(&ringbuffer.headPointer) + ringbuffer.length
-		currentMaxReaderPosition = atomic.LoadUint32(&ringbuffer.maxReaderIndex)
 
-		for i = 0; i < currentMaxReaderPosition; i++ {
+		for i = 0; i < atomic.LoadUint32(&ringbuffer.maximumConsumerId); i++ {
 
 			if atomic.LoadUint32(&ringbuffer.readerActiveFlags[i]) == 1 {
 				currentReadPosition = atomic.LoadUint32(&ringbuffer.readerPointers[i]) + ringbuffer.length
