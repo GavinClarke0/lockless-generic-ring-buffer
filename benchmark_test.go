@@ -5,46 +5,54 @@ import (
 	"testing"
 )
 
+const (
+	MessageCountLarge  = 10000000
+	MessageCountMedium = 100000
+	MessageCountSmall  = 1000
+)
+
 func BenchmarkConsumerSequentialReadWriteLarge(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ConsumerSequentialReadWrite(10000000)
+		ConsumerSequentialReadWrite(MessageCountLarge, b)
 	}
 }
 
 func BenchmarkChannelsSequentialReadWriteLarge(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ChannelsSequentialReadWrite(10000000)
+		ChannelsSequentialReadWrite(MessageCountLarge, b)
 	}
 }
 
 func BenchmarkConsumerSequentialReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ConsumerSequentialReadWrite(100000)
+		ConsumerSequentialReadWrite(MessageCountMedium, b)
 	}
 }
 
 func BenchmarkChannelsSequentialReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ChannelsSequentialReadWrite(100000)
+		ChannelsSequentialReadWrite(MessageCountMedium, b)
 	}
 }
 
 func BenchmarkConsumerSequentialReadWriteSmall(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ConsumerSequentialReadWrite(1000)
+		ConsumerSequentialReadWrite(MessageCountSmall, b)
 	}
 }
 
 func BenchmarkChannelsSequentialReadWriteSmall(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ChannelsSequentialReadWrite(1000)
+		ChannelsSequentialReadWrite(MessageCountSmall, b)
 	}
 }
 
-func ConsumerSequentialReadWrite(n int) {
+func ConsumerSequentialReadWrite(n int, b *testing.B) {
 
-	var buffer = CreateBuffer[int](BufferSize, 10)
+	b.StopTimer()
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
 	consumer, _ := buffer.CreateConsumer()
+	b.StartTimer()
 
 	for i := 0; i < n; i++ {
 		buffer.Write(i)
@@ -52,9 +60,11 @@ func ConsumerSequentialReadWrite(n int) {
 	}
 }
 
-func ChannelsSequentialReadWrite(n int) {
+func ChannelsSequentialReadWrite(n int, b *testing.B) {
 
-	var buffer = make(chan int, BufferSize)
+	b.StopTimer()
+	var buffer = make(chan int, BufferSizeStandard)
+	b.StartTimer()
 
 	for i := 0; i < n; i++ {
 		buffer <- i
@@ -68,42 +78,43 @@ Note there is heavy over head for syncing the routines in both and is not accura
 */
 func BenchmarkConsumerConcurrentReadWriteLarge(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ConsumerConcurrentReadWrite(10000000)
+		ConsumerConcurrentReadWrite(MessageCountLarge, b)
 	}
 }
 
 func BenchmarkChannelsConcurrentReadWriteLarge(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ChannelsConcurrentReadWrite(10000000)
+		ChannelsConcurrentReadWrite(MessageCountLarge, b)
 	}
 }
 
 func BenchmarkConsumerConcurrentReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ConsumerConcurrentReadWrite(100000)
+		ConsumerConcurrentReadWrite(MessageCountMedium, b)
 	}
 }
 
 func BenchmarkChannelsConcurrentReadWriteMedium(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ChannelsConcurrentReadWrite(100000)
+		ChannelsConcurrentReadWrite(MessageCountMedium, b)
 	}
 }
 func BenchmarkConsumerConcurrentReadWriteSmall(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ConsumerConcurrentReadWrite(1000)
+		ConsumerConcurrentReadWrite(MessageCountSmall, b)
 	}
 }
 
 func BenchmarkChannelsConcurrentReadWriteSmall(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		ChannelsConcurrentReadWrite(1000)
+		ChannelsConcurrentReadWrite(MessageCountSmall, b)
 	}
 }
 
-func ConsumerConcurrentReadWrite(n int) {
+func ConsumerConcurrentReadWrite(n int, b *testing.B) {
 
-	var buffer = CreateBuffer[int](BufferSize, 10)
+	b.StopTimer()
+	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
 
 	var wg sync.WaitGroup
 	messages := []int{}
@@ -113,6 +124,7 @@ func ConsumerConcurrentReadWrite(n int) {
 	}
 
 	consumer, _ := buffer.CreateConsumer()
+	b.StartTimer()
 
 	wg.Add(1)
 	go func() {
@@ -122,11 +134,9 @@ func ConsumerConcurrentReadWrite(n int) {
 		}
 	}()
 
-	i := -1
-
 	wg.Add(1)
 	go func() {
-
+		i := -1
 		defer wg.Done()
 		for _, _ = range messages {
 			j := consumer.Get()
@@ -139,8 +149,9 @@ func ConsumerConcurrentReadWrite(n int) {
 	wg.Wait()
 }
 
-func ChannelsConcurrentReadWrite(n int) {
+func ChannelsConcurrentReadWrite(n int, b *testing.B) {
 
+	b.StopTimer()
 	var wg sync.WaitGroup
 	messages := []int{}
 
@@ -148,8 +159,8 @@ func ChannelsConcurrentReadWrite(n int) {
 		messages = append(messages, i)
 	}
 
-	var buffer = make(chan int, BufferSize)
-
+	var buffer = make(chan int, BufferSizeStandard)
+	b.StartTimer()
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -158,11 +169,9 @@ func ChannelsConcurrentReadWrite(n int) {
 		}
 	}()
 
-	i := -1
-
 	wg.Add(1)
 	go func() {
-
+		i := -1
 		defer wg.Done()
 		for _, _ = range messages {
 			j := <-buffer
