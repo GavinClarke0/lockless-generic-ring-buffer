@@ -19,7 +19,7 @@ use case will benefit from storing the structs themselves vs pointers to your de
 
 ### Create and Consume 
 ```go
-var buffer = CreateBuffer[int](10)
+var buffer, _ = CreateBuffer[int](16) // buffer size must be to the power 2
 
 messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 consumer, _ := buffer.CreateConsumer()
@@ -49,18 +49,18 @@ better representation of the use case for a lockless ring buffer.
 
 
 ```sql
-BenchmarkConsumerSequentialReadWriteLarge-8            9         123775491 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteLarge-8            4         267835708 ns/op               2 B/op          0 allocs/op
-BenchmarkConsumerSequentialReadWriteMedium-8         945           1237392 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteMedium-8         452           2649935 ns/op               0 B/op          0 allocs/op
-BenchmarkConsumerSequentialReadWriteSmall-8        90973             13216 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteSmall-8        41222             29905 ns/op               0 B/op          0 allocs/op
-BenchmarkConsumerConcurrentReadWriteLarge-8            2         514588312 ns/op             848 B/op          4 allocs/op
-BenchmarkChannelsConcurrentReadWriteLarge-8            1        1122073083 ns/op            1120 B/op          6 allocs/op
-BenchmarkConsumerConcurrentReadWriteMedium-8         234           5187853 ns/op             126 B/op          2 allocs/op
-BenchmarkChannelsConcurrentReadWriteMedium-8         123           8888694 ns/op             113 B/op          2 allocs/op
-BenchmarkConsumerConcurrentReadWriteSmall-8        27728             43557 ns/op              96 B/op          2 allocs/op
-BenchmarkChannelsConcurrentReadWriteSmall-8        27944             43036 ns/op              97 B/op          2 allocs/op
+BenchmarkConsumerSequentialReadWriteLarge-8           12         101778681 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteLarge-8            4         297829104 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerSequentialReadWriteMedium-8        1165           1009366 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteMedium-8         438           2694622 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerSequentialReadWriteSmall-8       109093             11029 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteSmall-8        41461             28754 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerConcurrentReadWriteLarge-8            3         523153805 ns/op             512 B/op          3 allocs/op
+BenchmarkChannelsConcurrentReadWriteLarge-8            2        1003936000 ns/op             512 B/op          3 allocs/op
+BenchmarkConsumerConcurrentReadWriteMedium-8         230           5193883 ns/op             178 B/op          2 allocs/op
+BenchmarkChannelsConcurrentReadWriteMedium-8         133          11028325 ns/op             122 B/op          2 allocs/op
+BenchmarkConsumerConcurrentReadWriteSmall-8        29226             41357 ns/op              96 B/op          2 allocs/op
+BenchmarkChannelsConcurrentReadWriteSmall-8        32582             37125 ns/op              97 B/op          2 allocs/op
 ```
 
 In sequential benchmarks it is about `2x` the read write speed of channels and in concurrent benchmarks, where 
