@@ -8,11 +8,13 @@ import (
 )
 
 var (
-	MaxConsumerError = errors.New("max amount of consumers reached cannot create any more")
+	MaxConsumerError  = errors.New("max amount of consumers reached cannot create any more")
+	InvalidBufferSize = errors.New("buffer must be of size 2^n")
 )
 
 type RingBuffer[T any] struct {
 	length            uint32
+	bitWiseLength     uint32
 	headPointer       uint32 // next position to write
 	_                 uint32 // align on 64bit machine
 	maximumConsumerId uint32
@@ -28,18 +30,23 @@ type Consumer[T any] struct {
 	id   uint32
 }
 
-func CreateBuffer[T any](size uint32, maxConsumers uint32) RingBuffer[T] {
+func CreateBuffer[T any](size uint32, maxConsumers uint32) (RingBuffer[T], error) {
+
+	if size&(size-1) != 0 {
+		return RingBuffer[T]{}, InvalidBufferSize
+	}
 
 	return RingBuffer[T]{
-		buffer:            make([]T, size, size),
+		buffer:            make([]T, size+1, size+1),
 		length:            size,
+		bitWiseLength:     size - 1,
 		headPointer:       0,
 		maximumConsumerId: 0,
 		maxConsumers:      int(maxConsumers),
 		consumerLock:      sync.Mutex{},
 		readerPointers:    make([]uint32, maxConsumers),
 		readerActiveFlags: make([]uint32, maxConsumers),
-	}
+	}, nil
 }
 
 /*
@@ -132,7 +139,7 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 
 		if lastTailReaderPointerPosition > ringbuffer.headPointer {
 
-			ringbuffer.buffer[ringbuffer.headPointer%ringbuffer.length] = value
+			ringbuffer.buffer[ringbuffer.headPointer&ringbuffer.bitWiseLength] = value
 			atomic.AddUint32(&ringbuffer.headPointer, 1)
 			return
 		}
@@ -148,5 +155,5 @@ func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
 	for newIndex >= atomic.LoadUint32(&ringbuffer.headPointer) {
 		runtime.Gosched()
 	}
-	return ringbuffer.buffer[newIndex%ringbuffer.length]
+	return ringbuffer.buffer[newIndex&ringbuffer.bitWiseLength]
 }

@@ -19,7 +19,7 @@ use case will benefit from storing the structs themselves vs pointers to your de
 
 ### Create and Consume 
 ```go
-var buffer = CreateBuffer[int](10)
+var buffer, _ = CreateBuffer[int](16) // buffer size must be to the power 2
 
 messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 consumer, _ := buffer.CreateConsumer()

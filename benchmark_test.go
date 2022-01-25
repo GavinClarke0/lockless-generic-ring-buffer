@@ -50,7 +50,7 @@ func BenchmarkChannelsSequentialReadWriteSmall(b *testing.B) {
 func ConsumerSequentialReadWrite(n int, b *testing.B) {
 
 	b.StopTimer()
-	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
+	var buffer, _ = CreateBuffer[int](BufferSizeStandard, 10)
 	consumer, _ := buffer.CreateConsumer()
 	b.StartTimer()
 
@@ -114,7 +114,7 @@ func BenchmarkChannelsConcurrentReadWriteSmall(b *testing.B) {
 func ConsumerConcurrentReadWrite(n int, b *testing.B) {
 
 	b.StopTimer()
-	var buffer = CreateBuffer[int](BufferSizeStandard, 10)
+	var buffer, _ = CreateBuffer[int](BufferSizeStandard, 10)
 
 	var wg sync.WaitGroup
 	messages := []int{}
