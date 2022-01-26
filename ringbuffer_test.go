@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	BufferSizeStandard = 128
+	BufferSizeStandard = 256
 	BufferSizeSmall    = 16
 	BufferSizeTiny     = 2
 )
