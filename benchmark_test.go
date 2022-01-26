@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	MessageCountLarge  = 10000000
+	MessageCountLarge  = 5000000
 	MessageCountMedium = 100000
 	MessageCountSmall  = 1000
 )
@@ -161,6 +161,7 @@ func ChannelsConcurrentReadWrite(n int, b *testing.B) {
 
 	var buffer = make(chan int, BufferSizeStandard)
 	b.StartTimer()
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

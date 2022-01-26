@@ -49,18 +49,19 @@ better representation of the use case for a lockless ring buffer.
 
 
 ```sql
-BenchmarkConsumerSequentialReadWriteLarge-8           12         101778681 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteLarge-8            4         297829104 ns/op               0 B/op          0 allocs/op
-BenchmarkConsumerSequentialReadWriteMedium-8        1165           1009366 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteMedium-8         438           2694622 ns/op               0 B/op          0 allocs/op
-BenchmarkConsumerSequentialReadWriteSmall-8       109093             11029 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteSmall-8        41461             28754 ns/op               0 B/op          0 allocs/op
-BenchmarkConsumerConcurrentReadWriteLarge-8            3         523153805 ns/op             512 B/op          3 allocs/op
-BenchmarkChannelsConcurrentReadWriteLarge-8            2        1003936000 ns/op             512 B/op          3 allocs/op
-BenchmarkConsumerConcurrentReadWriteMedium-8         230           5193883 ns/op             178 B/op          2 allocs/op
-BenchmarkChannelsConcurrentReadWriteMedium-8         133          11028325 ns/op             122 B/op          2 allocs/op
-BenchmarkConsumerConcurrentReadWriteSmall-8        29226             41357 ns/op              96 B/op          2 allocs/op
-BenchmarkChannelsConcurrentReadWriteSmall-8        32582             37125 ns/op              97 B/op          2 allocs/op
+pkg: lockless_generic_ring_buffer
+BenchmarkConsumerSequentialReadWriteLarge-8           24          49058092 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteLarge-8            8         133992614 ns/op               1 B/op          0 allocs/op
+BenchmarkConsumerSequentialReadWriteMedium-8        1200           1003891 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteMedium-8         447           2680120 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerSequentialReadWriteSmall-8       109717             10922 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteSmall-8        41360             28959 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerConcurrentReadWriteLarge-8            4         268338386 ns/op             512 B/op          3 allocs/op
+BenchmarkChannelsConcurrentReadWriteLarge-8            2         779468271 ns/op             448 B/op          4 allocs/op
+BenchmarkConsumerConcurrentReadWriteMedium-8         222           5181917 ns/op             132 B/op          2 allocs/op
+BenchmarkChannelsConcurrentReadWriteMedium-8          82          16977129 ns/op             134 B/op          2 allocs/op
+BenchmarkConsumerConcurrentReadWriteSmall-8        31675             37890 ns/op              96 B/op          2 allocs/op
+BenchmarkChannelsConcurrentReadWriteSmall-8        24438             49717 ns/op              97 B/op          2 allocs/op
 ```
 
 In sequential benchmarks it is about `2x` the read write speed of channels and in concurrent benchmarks, where 
