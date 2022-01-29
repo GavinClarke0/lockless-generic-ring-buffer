@@ -1,4 +1,4 @@
-package lockless_generic_ring_buffer
+package locklessgenericringbuffer
 
 import (
 	"errors"
@@ -16,7 +16,6 @@ type RingBuffer[T any] struct {
 	length            uint32
 	bitWiseLength     uint32
 	headPointer       uint32 // next position to write
-	_                 uint32 // align on 64bit machine
 	maximumConsumerId uint32
 	maxConsumers      int
 	consumerLock      sync.Mutex

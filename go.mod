@@ -1,3 +1,3 @@
-module github.com/GavinClarke0/lockless_generic_ring_buffer
+module github.com/GavinClarke0/lockless-generic-ring-buffer
 
 go 1.18
