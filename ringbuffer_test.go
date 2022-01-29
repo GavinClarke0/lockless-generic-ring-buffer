@@ -1,4 +1,4 @@
-package lockless_generic_ring_buffer
+package locklessgenericringbuffer
 
 import (
 	"crypto/rand"
