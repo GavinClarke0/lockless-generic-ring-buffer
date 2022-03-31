@@ -3,7 +3,6 @@ package locklessgenericringbuffer
 import (
 	"errors"
 	"runtime"
-	"sync"
 	"sync/atomic"
 )
 
@@ -18,7 +17,6 @@ type RingBuffer[T any] struct {
 	headPointer       uint32 // next position to write
 	maximumConsumerId uint32
 	maxConsumers      int
-	consumerLock      sync.Mutex
 	buffer            []T
 	readerPointers    []uint32
 	readerActiveFlags []uint32
@@ -42,7 +40,6 @@ func CreateBuffer[T any](size uint32, maxConsumers uint32) (RingBuffer[T], error
 		headPointer:       0,
 		maximumConsumerId: 0,
 		maxConsumers:      int(maxConsumers),
-		consumerLock:      sync.Mutex{},
 		readerPointers:    make([]uint32, maxConsumers),
 		readerActiveFlags: make([]uint32, maxConsumers),
 	}, nil
@@ -54,44 +51,30 @@ CreateConsumer
 Create a consumer by assigning it the id of the first empty position in the consumerPosition array. A nil value represents
 an unclaimed/not used consumer.
 
-Locks can be used as it has no effect on read/write operations and is only to keep consumer consistency, thus the
-algorithm is still lockless For best performance, consumers should be preallocated before starting buffer operations
 */
 func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 
-	ringbuffer.consumerLock.Lock()
-	defer ringbuffer.consumerLock.Unlock()
+	for newConsumerId, _ := range ringbuffer.readerActiveFlags {
+		if atomic.CompareAndSwapUint32(&ringbuffer.readerActiveFlags[newConsumerId], 0, 1) {
 
-	var newConsumerId = ringbuffer.maxConsumers
+			if uint32(newConsumerId) >= ringbuffer.maximumConsumerId {
+				atomic.AddUint32(&ringbuffer.maximumConsumerId, 1)
+			}
 
-	for i, _ := range ringbuffer.readerActiveFlags {
-		if atomic.LoadUint32(&ringbuffer.readerActiveFlags[i]) == 0 {
-			newConsumerId = i
-			break
+			ringbuffer.readerPointers[newConsumerId] = atomic.LoadUint32(&ringbuffer.headPointer) - 1
+			atomic.StoreUint32(&ringbuffer.readerActiveFlags[newConsumerId], 1)
+
+			return Consumer[T]{
+				id:   uint32(newConsumerId),
+				ring: ringbuffer,
+			}, nil
 		}
 	}
 
-	if newConsumerId == ringbuffer.maxConsumers {
-		return Consumer[T]{}, MaxConsumerError
-	}
-
-	if uint32(newConsumerId) >= ringbuffer.maximumConsumerId {
-		atomic.AddUint32(&ringbuffer.maximumConsumerId, 1)
-	}
-
-	ringbuffer.readerPointers[newConsumerId] = atomic.LoadUint32(&ringbuffer.headPointer) - 1
-	atomic.StoreUint32(&ringbuffer.readerActiveFlags[newConsumerId], 1)
-
-	return Consumer[T]{
-		id:   uint32(newConsumerId),
-		ring: ringbuffer,
-	}, nil
+	return Consumer[T]{}, MaxConsumerError
 }
 
 func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
-
-	ringbuffer.consumerLock.Lock()
-	defer ringbuffer.consumerLock.Unlock()
 
 	atomic.StoreUint32(&ringbuffer.readerActiveFlags[consumerId], 0)
 	atomic.CompareAndSwapUint32(&ringbuffer.maximumConsumerId, consumerId, ringbuffer.maximumConsumerId-1)
