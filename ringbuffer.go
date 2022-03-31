@@ -55,7 +55,7 @@ an unclaimed/not used consumer.
 func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 
 	for newConsumerId, _ := range ringbuffer.readerActiveFlags {
-		if atomic.CompareAndSwapUint32(&ringbuffer.readerActiveFlags[newConsumerId], 0, 1) {
+		if atomic.CompareAndSwapUint32(&ringbuffer.readerActiveFlags[newConsumerId], 0, 2) {
 
 			if uint32(newConsumerId) >= ringbuffer.maximumConsumerId {
 				atomic.AddUint32(&ringbuffer.maximumConsumerId, 1)
