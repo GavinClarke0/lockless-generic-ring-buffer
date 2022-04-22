@@ -48,19 +48,20 @@ func CreateBuffer[T any](size uint32, maxReaders uint32) (RingBuffer[T], error) 
 /*
 CreateConsumer
 
-Create a consumer by assigning it the id of the first empty position in the consumerPosition array. A nil value represents
-an unclaimed/not used consumer.
+Create a consumer by assigning it the id of the first empty position in the consumerPosition array. Consumer status is track
+via a flag array with 0 meaning empty, 1 in use and 2 as an intermittent state of being created
 */
 func (buffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 
 	for readerIndex, _ := range buffer.readerActiveFlags {
 		if atomic.CompareAndSwapUint32(&buffer.readerActiveFlags[readerIndex], 0, 2) {
 
-			atomic.CompareAndSwapUint32(&buffer.nextReaderIndex, uint32(readerIndex), uint32(readerIndex)+1)
-
-			// as read state is set to 2, we can afford to non atomically set readIndex
+			// as read state is set to 2, we can afford to non atomically set readIndex, no writer will access it
 			buffer.readerIndexes[readerIndex] = atomic.LoadUint32(&buffer.headIndex)
 			atomic.StoreUint32(&buffer.readerActiveFlags[readerIndex], 1)
+
+			// case where reader has the current maximum id, and it is needed to be incremented
+			atomic.CompareAndSwapUint32(&buffer.nextReaderIndex, uint32(readerIndex), uint32(readerIndex)+1)
 
 			return Consumer[T]{
 				id:   uint32(readerIndex),
@@ -87,14 +88,13 @@ func (consumer *Consumer[T]) Get() T {
 
 func (buffer *RingBuffer[T]) Write(value T) {
 
-	var delta uint32
+	var offset uint32
 	var i uint32
-
 	/*
-		We are blocking until the all at least one space is available in the buffer to write.
+		We are blocking until the all at least one space is available in the buffer to attemptWrite.
 
 		As overflow properties of uint32 are utilized to ensure slice index boundaries are adhered too we add the length
-		of buffer to current consumer read positions allowing us to determine the least read consumer.
+		of buffer to current reader's position allowing us to determine the least read reader.
 
 		For example: buffer of size 2
 
@@ -102,35 +102,32 @@ func (buffer *RingBuffer[T]) Write(value T) {
 		uint8 tail = 255
 		tail + 2 => 1 with overflow, same as buffer
 	*/
-	for {
 
-		nextReaderIndex := atomic.LoadUint32(&buffer.nextReaderIndex)
-		canWrite := true
+attemptWrite:
+	nextReaderIndex := atomic.LoadUint32(&buffer.nextReaderIndex)
 
-		for i = 0; i < nextReaderIndex; i++ {
-			if atomic.LoadUint32(&buffer.readerActiveFlags[i]) == 1 {
-				delta = atomic.LoadUint32(&buffer.readerIndexes[i]) + buffer.length
+	for i = 0; i < nextReaderIndex; i++ {
+		if atomic.LoadUint32(&buffer.readerActiveFlags[i]) == 1 {
+			offset = atomic.LoadUint32(&buffer.readerIndexes[i]) + buffer.length
 
-				// only true if the delta between at least one reader and the writer is equal to the size of the buffer
-				if delta == buffer.headIndex {
-					canWrite = false
-				}
+			// only true if the offset between at least one reader and the writer is equal to the size of the buffer
+			if offset == buffer.headIndex {
+				runtime.Gosched()
+				goto attemptWrite
 			}
 		}
-
-		if canWrite {
-			nextIndex := buffer.headIndex + 1
-			buffer.buffer[nextIndex&buffer.bitWiseLength] = value
-			atomic.StoreUint32(&buffer.headIndex, nextIndex)
-			return
-		}
-		runtime.Gosched()
 	}
+
+	nextIndex := buffer.headIndex + 1
+	buffer.buffer[nextIndex&buffer.bitWiseLength] = value
+	atomic.StoreUint32(&buffer.headIndex, nextIndex)
+	return
+
 }
 
 func (buffer *RingBuffer[T]) readIndex(readerIndex uint32) T {
 
-	var newIndex = buffer.readerIndexes[readerIndex] + 1
+	newIndex := buffer.readerIndexes[readerIndex] + 1
 	// yield until work is available
 	for newIndex > atomic.LoadUint32(&buffer.headIndex) {
 		runtime.Gosched()
