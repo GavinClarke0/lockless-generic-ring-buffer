@@ -27,7 +27,7 @@ type Consumer[T any] struct {
 	id   uint32
 }
 
-func CreateBuffer[T any](size uint32, maxConsumers uint32) (RingBuffer[T], error) {
+func CreateBuffer[T any](size uint32, maxReaders uint32) (RingBuffer[T], error) {
 
 	if size&(size-1) != 0 {
 		return RingBuffer[T]{}, InvalidBufferSize
@@ -39,9 +39,9 @@ func CreateBuffer[T any](size uint32, maxConsumers uint32) (RingBuffer[T], error
 		bitWiseLength:     size - 1,
 		headIndex:         0,
 		nextReaderIndex:   0,
-		maxReaders:        int(maxConsumers),
-		readerIndexes:     make([]uint32, maxConsumers),
-		readerActiveFlags: make([]uint32, maxConsumers),
+		maxReaders:        int(maxReaders),
+		readerIndexes:     make([]uint32, maxReaders),
+		readerActiveFlags: make([]uint32, maxReaders),
 	}, nil
 }
 
@@ -105,7 +105,7 @@ func (buffer *RingBuffer[T]) Write(value T) {
 	for {
 
 		nextReaderIndex := atomic.LoadUint32(&buffer.nextReaderIndex)
-		write := true
+		canWrite := true
 
 		for i = 0; i < nextReaderIndex; i++ {
 			if atomic.LoadUint32(&buffer.readerActiveFlags[i]) == 1 {
@@ -113,14 +113,15 @@ func (buffer *RingBuffer[T]) Write(value T) {
 
 				// only true if the delta between at least one reader and the writer is equal to the size of the buffer
 				if delta == buffer.headIndex {
-					write = false
+					canWrite = false
 				}
 			}
 		}
 
-		if write {
-			buffer.buffer[(buffer.headIndex+1)&buffer.bitWiseLength] = value
-			atomic.AddUint32(&buffer.headIndex, 1)
+		if canWrite {
+			nextIndex := buffer.headIndex + 1
+			buffer.buffer[nextIndex&buffer.bitWiseLength] = value
+			atomic.StoreUint32(&buffer.headIndex, nextIndex)
 			return
 		}
 		runtime.Gosched()
