@@ -2,7 +2,10 @@
 
 This is an implementation of a single producer, multi reader lockless ring buffer utilizing the new generics available in 
 `go 1.18`. Instead of passing typeless `interface{}` which we have to assert or deserialized `[]byte`'s we are able to 
-pass serialized structs between go routines in a type safe manner.
+pass serialized structs between go routines in a type safe manner. 
+
+**Note: the current implementation writer is NOT thread safe** 
+
 
 This package goes to great lengths not to allocate in the critical path and thus makes `0` allocations once the buffer is 
 created outside the creation of consumers. 
@@ -13,7 +16,7 @@ Understanding how your structs lay out in memory
 use case will benefit from storing the structs themselves vs pointers to your desired type.
 
 ## Requirements
-- `golang 1.18beta`
+- `golang 1.18.x or above`
 
 ## Examples
 

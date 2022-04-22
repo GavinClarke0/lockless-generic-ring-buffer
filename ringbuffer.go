@@ -14,11 +14,11 @@ var (
 type RingBuffer[T any] struct {
 	length            uint32
 	bitWiseLength     uint32
-	headPointer       uint32 // next position to write
-	maximumConsumerId uint32
-	maxConsumers      int
+	headIndex         uint32 // next position to write
+	nextReaderIndex   uint32
+	maxReaders        int
 	buffer            []T
-	readerPointers    []uint32
+	readerIndexes     []uint32
 	readerActiveFlags []uint32
 }
 
@@ -34,13 +34,13 @@ func CreateBuffer[T any](size uint32, maxConsumers uint32) (RingBuffer[T], error
 	}
 
 	return RingBuffer[T]{
-		buffer:            make([]T, size+1, size+1),
+		buffer:            make([]T, size, size),
 		length:            size,
 		bitWiseLength:     size - 1,
-		headPointer:       0,
-		maximumConsumerId: 0,
-		maxConsumers:      int(maxConsumers),
-		readerPointers:    make([]uint32, maxConsumers),
+		headIndex:         0,
+		nextReaderIndex:   0,
+		maxReaders:        int(maxConsumers),
+		readerIndexes:     make([]uint32, maxConsumers),
 		readerActiveFlags: make([]uint32, maxConsumers),
 	}, nil
 }
@@ -50,23 +50,21 @@ CreateConsumer
 
 Create a consumer by assigning it the id of the first empty position in the consumerPosition array. A nil value represents
 an unclaimed/not used consumer.
-
 */
-func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
+func (buffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 
-	for newConsumerId, _ := range ringbuffer.readerActiveFlags {
-		if atomic.CompareAndSwapUint32(&ringbuffer.readerActiveFlags[newConsumerId], 0, 2) {
+	for readerIndex, _ := range buffer.readerActiveFlags {
+		if atomic.CompareAndSwapUint32(&buffer.readerActiveFlags[readerIndex], 0, 2) {
 
-			if uint32(newConsumerId) >= ringbuffer.maximumConsumerId {
-				atomic.AddUint32(&ringbuffer.maximumConsumerId, 1)
-			}
+			atomic.CompareAndSwapUint32(&buffer.nextReaderIndex, uint32(readerIndex), uint32(readerIndex)+1)
 
-			ringbuffer.readerPointers[newConsumerId] = atomic.LoadUint32(&ringbuffer.headPointer) - 1
-			atomic.StoreUint32(&ringbuffer.readerActiveFlags[newConsumerId], 1)
+			// as read state is set to 2, we can afford to non atomically set readIndex
+			buffer.readerIndexes[readerIndex] = atomic.LoadUint32(&buffer.headIndex)
+			atomic.StoreUint32(&buffer.readerActiveFlags[readerIndex], 1)
 
 			return Consumer[T]{
-				id:   uint32(newConsumerId),
-				ring: ringbuffer,
+				id:   uint32(readerIndex),
+				ring: buffer,
 			}, nil
 		}
 	}
@@ -74,10 +72,9 @@ func (ringbuffer *RingBuffer[T]) CreateConsumer() (Consumer[T], error) {
 	return Consumer[T]{}, MaxConsumerError
 }
 
-func (ringbuffer *RingBuffer[T]) removeConsumer(consumerId uint32) {
-
-	atomic.StoreUint32(&ringbuffer.readerActiveFlags[consumerId], 0)
-	atomic.CompareAndSwapUint32(&ringbuffer.maximumConsumerId, consumerId, ringbuffer.maximumConsumerId-1)
+func (buffer *RingBuffer[T]) removeConsumer(readerId uint32) {
+	atomic.StoreUint32(&buffer.readerActiveFlags[readerId], 0)
+	atomic.CompareAndSwapUint32(&buffer.nextReaderIndex, readerId-1, buffer.nextReaderIndex-1)
 }
 
 func (consumer *Consumer[T]) Remove() {
@@ -88,11 +85,11 @@ func (consumer *Consumer[T]) Get() T {
 	return consumer.ring.readIndex(consumer.id)
 }
 
-func (ringbuffer *RingBuffer[T]) Write(value T) {
+func (buffer *RingBuffer[T]) Write(value T) {
 
-	var lastTailReaderPointerPosition uint32
-	var currentReadPosition uint32
+	var delta uint32
 	var i uint32
+
 	/*
 		We are blocking until the all at least one space is available in the buffer to write.
 
@@ -106,36 +103,39 @@ func (ringbuffer *RingBuffer[T]) Write(value T) {
 		tail + 2 => 1 with overflow, same as buffer
 	*/
 	for {
-		lastTailReaderPointerPosition = atomic.LoadUint32(&ringbuffer.headPointer) + ringbuffer.length
 
-		for i = 0; i < atomic.LoadUint32(&ringbuffer.maximumConsumerId); i++ {
+		nextReaderIndex := atomic.LoadUint32(&buffer.nextReaderIndex)
+		write := true
 
-			if atomic.LoadUint32(&ringbuffer.readerActiveFlags[i]) == 1 {
-				currentReadPosition = atomic.LoadUint32(&ringbuffer.readerPointers[i]) + ringbuffer.length
+		for i = 0; i < nextReaderIndex; i++ {
+			if atomic.LoadUint32(&buffer.readerActiveFlags[i]) == 1 {
+				delta = atomic.LoadUint32(&buffer.readerIndexes[i]) + buffer.length
 
-				if currentReadPosition < lastTailReaderPointerPosition {
-					lastTailReaderPointerPosition = currentReadPosition
+				// only true if the delta between at least one reader and the writer is equal to the size of the buffer
+				if delta == buffer.headIndex {
+					write = false
 				}
 			}
 		}
 
-		if lastTailReaderPointerPosition > ringbuffer.headPointer {
-
-			ringbuffer.buffer[ringbuffer.headPointer&ringbuffer.bitWiseLength] = value
-			atomic.AddUint32(&ringbuffer.headPointer, 1)
+		if write {
+			buffer.buffer[(buffer.headIndex+1)&buffer.bitWiseLength] = value
+			atomic.AddUint32(&buffer.headIndex, 1)
 			return
 		}
 		runtime.Gosched()
 	}
 }
 
-func (ringbuffer *RingBuffer[T]) readIndex(consumerId uint32) T {
+func (buffer *RingBuffer[T]) readIndex(readerIndex uint32) T {
 
-	var newIndex = atomic.AddUint32(&ringbuffer.readerPointers[consumerId], 1)
-
+	var newIndex = buffer.readerIndexes[readerIndex] + 1
 	// yield until work is available
-	for newIndex >= atomic.LoadUint32(&ringbuffer.headPointer) {
+	for newIndex > atomic.LoadUint32(&buffer.headIndex) {
 		runtime.Gosched()
 	}
-	return ringbuffer.buffer[newIndex&ringbuffer.bitWiseLength]
+
+	value := buffer.buffer[newIndex&buffer.bitWiseLength]
+	atomic.AddUint32(&buffer.readerIndexes[readerIndex], 1)
+	return value
 }
