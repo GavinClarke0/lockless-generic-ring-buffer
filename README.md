@@ -2,7 +2,10 @@
 
 This is an implementation of a single producer, multi reader lockless ring buffer utilizing the new generics available in 
 `go 1.18`. Instead of passing typeless `interface{}` which we have to assert or deserialized `[]byte`'s we are able to 
-pass serialized structs between go routines in a type safe manner.
+pass serialized structs between go routines in a type safe manner. 
+
+**Note: the current implementation writers nor individual consumers is NOT thread safe, i.e. one consumer per go routine** 
+
 
 This package goes to great lengths not to allocate in the critical path and thus makes `0` allocations once the buffer is 
 created outside the creation of consumers. 
@@ -13,7 +16,7 @@ Understanding how your structs lay out in memory
 use case will benefit from storing the structs themselves vs pointers to your desired type.
 
 ## Requirements
-- `golang 1.18beta`
+- `golang 1.18.x or above`
 
 ## Examples
 
@@ -49,19 +52,19 @@ better representation of the use case for a lockless ring buffer.
 
 
 ```sql
-pkg: lockless_generic_ring_buffer
-BenchmarkConsumerSequentialReadWriteLarge-8           24          49058092 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteLarge-8            8         133992614 ns/op               1 B/op          0 allocs/op
-BenchmarkConsumerSequentialReadWriteMedium-8        1200           1003891 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteMedium-8         447           2680120 ns/op               0 B/op          0 allocs/op
-BenchmarkConsumerSequentialReadWriteSmall-8       109717             10922 ns/op               0 B/op          0 allocs/op
-BenchmarkChannelsSequentialReadWriteSmall-8        41360             28959 ns/op               0 B/op          0 allocs/op
-BenchmarkConsumerConcurrentReadWriteLarge-8            4         268338386 ns/op             512 B/op          3 allocs/op
-BenchmarkChannelsConcurrentReadWriteLarge-8            2         779468271 ns/op             448 B/op          4 allocs/op
-BenchmarkConsumerConcurrentReadWriteMedium-8         222           5181917 ns/op             132 B/op          2 allocs/op
-BenchmarkChannelsConcurrentReadWriteMedium-8          82          16977129 ns/op             134 B/op          2 allocs/op
-BenchmarkConsumerConcurrentReadWriteSmall-8        31675             37890 ns/op              96 B/op          2 allocs/op
-BenchmarkChannelsConcurrentReadWriteSmall-8        24438             49717 ns/op              97 B/op          2 allocs/op
+BenchmarkConsumerSequentialReadWriteLarge-8           20          55602675 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteLarge-8            8         133155344 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerSequentialReadWriteMedium-8        1063           1123298 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteMedium-8         451           2650842 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerSequentialReadWriteSmall-8        99393             12099 ns/op               0 B/op          0 allocs/op
+BenchmarkChannelsSequentialReadWriteSmall-8        41755             28758 ns/op               0 B/op          0 allocs/op
+BenchmarkConsumerConcurrentReadWriteLarge-8            5         223985800 ns/op             345 B/op          2 allocs/op
+BenchmarkChannelsConcurrentReadWriteLarge-8            2         858931292 ns/op             144 B/op          2 allocs/op
+BenchmarkConsumerConcurrentReadWriteMedium-8         278           4554057 ns/op             217 B/op          2 allocs/op
+BenchmarkChannelsConcurrentReadWriteMedium-8          90          17578294 ns/op             169 B/op          2 allocs/op
+BenchmarkConsumerConcurrentReadWriteSmall-8        36378             33837 ns/op              96 B/op          2 allocs/op
+BenchmarkChannelsConcurrentReadWriteSmall-8        25004             47466 ns/op              97 B/op          2 allocs/op
+
 ```
 
 In sequential benchmarks it is about `2x` the read write speed of channels and in concurrent benchmarks, where 

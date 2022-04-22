@@ -17,7 +17,7 @@ func TestGetsAreSequentiallyOrdered(t *testing.T) {
 
 	//ring := make([]int, 10, 10)
 
-	var buffer, _ = CreateBuffer[int](BufferSizeStandard, 10)
+	var buffer, _ = CreateBuffer[int](BufferSizeSmall, 10)
 
 	messages := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
 	consumer, _ := buffer.CreateConsumer()
@@ -130,18 +130,14 @@ func TestConcurrentGetsAreSequentiallyOrdered(t *testing.T) {
 		}
 	}()
 
-	i := -1
-
 	wg.Add(1)
 	go func() {
-
 		defer wg.Done()
-		for _, _ = range messages {
+		for _, value := range messages {
 			j := consumer.Get()
-			if j != i+1 {
+			if j != value {
 				t.Fail()
 			}
-			i = j
 		}
 	}()
 	wg.Wait()
@@ -169,18 +165,14 @@ func TestConcurrentGetsAreSequentiallyOrderedMinibuffer(t *testing.T) {
 		}
 	}()
 
-	i := -1
-
 	wg.Add(1)
 	go func() {
-
 		defer wg.Done()
-		for _, _ = range messages {
+		for _, value := range messages {
 			j := consumer.Get()
-			if j != i+1 {
+			if j != value {
 				t.Fail()
 			}
-			i = j
 		}
 	}()
 	wg.Wait()
@@ -213,40 +205,34 @@ func TestConcurrentStringsGetsAreSequentiallyOrderedWithMultiConsumer(t *testing
 
 	wg.Add(1)
 	go func() {
-		//i := -1
 		defer wg.Done()
 		for _, value := range messages {
 			j := consumer1.Get()
 			if j != value {
 				t.Fail()
 			}
-			//i = j
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
-		//i := -1
 		defer wg.Done()
 		for _, value := range messages {
 			j := consumer2.Get()
 			if j != value {
 				t.Fail()
 			}
-			//i = j
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
-		//i := -1
 		defer wg.Done()
 		for _, value := range messages {
 			j := consumer3.Get()
 			if j != value {
 				t.Fail()
 			}
-			//i = j
 		}
 	}()
 	wg.Wait()
@@ -278,40 +264,34 @@ func TestConcurrentGetsAreSequentiallyOrderedWithMultiConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
-		//i := -1
 		defer wg.Done()
 		for _, value := range messages {
 			j := consumer1.Get()
 			if j != value {
 				t.Fail()
 			}
-			//i = j
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
-		//i := -1
 		defer wg.Done()
 		for _, value := range messages {
 			j := consumer2.Get()
 			if j != value {
 				t.Fail()
 			}
-			//i = j
 		}
 	}()
 
 	wg.Add(1)
 	go func() {
-		//i := -1
 		defer wg.Done()
 		for _, value := range messages {
 			j := consumer3.Get()
 			if j != value {
 				t.Fail()
 			}
-			//i = j
 		}
 	}()
 	wg.Wait()
@@ -330,7 +310,6 @@ func TestConcurrentAddRemoveConsumerDoesNotBlockWrites(t *testing.T) {
 	}
 
 	consumer1, _ := buffer.CreateConsumer()
-
 	failIfDeadLock(t)
 
 	wg.Add(1)
@@ -355,7 +334,6 @@ func TestConcurrentAddRemoveConsumerDoesNotBlockWrites(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		consumer2, _ := buffer.CreateConsumer()
-
 		defer wg.Done()
 		for _, _ = range messages[:500] {
 			consumer2.Get()
