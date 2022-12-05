@@ -1,24 +1,32 @@
 # LocklessGenericRingBuffer
 
-This is an implementation of a single producer, multi reader lockless ring buffer utilizing the new generics available in 
-`go 1.18`. Instead of passing typeless `interface{}` which we have to assert or deserialized `[]byte`'s we are able to 
-pass serialized structs between go routines in a type safe manner. 
+LocklessGenericRingBuffer is a single producer, multi reader lockless ring buffer utilizing the new generics available in 
+`go 1.18+`. Instead of passing typeless `interface{}` or byte arrays we are able to pass serialized structs between go routines in a type safe manner. 
 
-**Note: the current implementation writers nor individual consumers is NOT thread safe, i.e. one consumer per go routine** 
+### What is a lockless ringbuffer ?
+
+A ring buffer, also known as a circular buffer, is a fixed-size buffer that can be efficiently appended to and read from. This implementation allows for multiple goroutines to concurrently read and a single goroutine to write to the buffer without the need for locks, ensuring maximum throughput and minimal latency. 
 
 
-This package goes to great lengths not to allocate in the critical path and thus makes `0` allocations once the buffer is 
-created outside the creation of consumers. 
+## Benefits
 
-A large part of the benefit of ring buffers can be attributed to the underlying array being continuous memory. 
-Understanding how your structs lay out in memory 
-([a brief introduction into how structs are represented in memory](https://research.swtch.com/godata)) is key to if your 
-use case will benefit from storing the structs themselves vs pointers to your desired type.
+- [x] Zero Heap Allocations
+- [x] Cache Friendly are underlying structures are continuous memory
+- [x] Faster then channels for highly contended workloads (See Benchmarks)
+- [x] Zero Dependencies 
 
 ## Requirements
 - `golang 1.18.x or above`
 
-## Examples
+## Getting started
+
+**Note: writers and consumers are NOT thread safe, i.e. only use a consumer in a single go routine** 
+
+### Install 
+
+```
+go get github.com/GavinClarke0/lockless-generic-ring-buffer
+```
 
 ### Create and Consume 
 ```go
@@ -46,10 +54,9 @@ consumer.Remove()
 
 ### Comparison against channels 
 
-Benchmarks are ran on a **M1 Macbook Air (16gb ram)**, each benchmark does not include creation time of the consumers/channels. 
-This **favours** the channels' implementation compared to benchmark's including the creation time , however it is a 
-better representation of the use case for a lockless ring buffer.
+Benchmarks are ran on a **M1 Macbook Air (16gb ram)**.
 
+**Note: each benchmark does not include creation time of the consumers/channels.**
 
 ```sql
 BenchmarkConsumerSequentialReadWriteLarge-8           20          55602675 ns/op               0 B/op          0 allocs/op
@@ -67,9 +74,9 @@ BenchmarkChannelsConcurrentReadWriteSmall-8        25004             47466 ns/op
 
 ```
 
-In sequential benchmarks it is about `2x` the read write speed of channels and in concurrent benchmarks, where 
-operations can block, it is slightly `2x` faster than the channel implementation on a large amount of messages **1M+** and slightly
-under `2x` with a small amount i.e processing sub 100. 
+In sequential benchmarks it is about `2x` the read write speed of channels. 
+
+In concurrent benchmarks, where operations can block, it is about `2x` faster than the channel implementation. 
 
 ## Testing 
 
@@ -80,7 +87,3 @@ passes.
 
 **Note** this does not mean it is race condition free. 
 Additional tests, especially on creating and removing consumers in concurrent environments are needed. 
-
-## TODO:
-- [ ] formal benchmarks and performance tests
-- [ ] Formal TLS Proof and Write up of algorithm
