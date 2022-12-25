@@ -11,7 +11,7 @@ A ring buffer, also known as a circular buffer, is a fixed-size buffer that can 
 ## Benefits
 
 - [x] Zero Heap Allocations
-- [x] Cache Friendly are underlying structures are continuous memory
+- [x] Cache Friendly as underlying structures are continuous in memory
 - [x] Faster then channels for highly contended workloads (See Benchmarks)
 - [x] Zero Dependencies 
 
